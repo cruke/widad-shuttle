@@ -3,7 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <title>Live Bus Viewer</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
     html, body {
@@ -11,6 +12,8 @@
       height:100%;
       font-family:system-ui, sans-serif;
       background:#fff;
+      /* helps some browsers treat taps as interactions, not zoom */
+      touch-action:manipulation;
     }
     #map { height:100%; width:100%; }
     body {
@@ -362,11 +365,21 @@
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
+    /* Prevent double-tap zoom (especially on iOS Safari) */
+    let lastTouchEnd = 0;
+    document.addEventListener('touchend', function (event) {
+      const now = Date.now();
+      if (now - lastTouchEnd <= 300) {
+        event.preventDefault();
+      }
+      lastTouchEnd = now;
+    }, { passive:false });
+
     /* Config */
     const WEB_APP_URL = "https://script.google.com/macros/s/AKfycby6mh0UYXsQyms8ZHWGl5fgDM2yUCBH7TfQ53zTS810KGLS8rLFFcijVTpGpoo2Ab5uAg/exec";
     const REFRESH_SEC = 10;
     const TRAIL_LIMIT_PER_DAY = 200;
-    const HOME = L.latLng(3.8235798, 103.2799927);  // updated home coords
+    const HOME = L.latLng(3.8235798, 103.2799927);  // home coords
 
     /* DOM */
     const legendEl = document.getElementById('legend');
@@ -451,7 +464,7 @@
     let paletteIdx = 0;
     const nextMutedColor = () => mutedPalette[(paletteIdx++) % mutedPalette.length];
 
-    /* Circular bus icon (already circle) */
+    /* Circular bus icon */
     function makeBusIcon(id,color){
       return L.divIcon({
         className:'bus-icon',
@@ -647,35 +660,6 @@
       };
 
       return d;
-    }
-
-    /* Trails: only today's points, up to TRAIL_LIMIT_PER_DAY */
-    function todaysLimitedRows(rows){
-      if(!rows || !rows.length) return [];
-      const todayStr = new Date().toDateString();
-      const todayRows = rows.filter(r => new Date(r.timestamp).toDateString() === todayStr);
-      const sliced = todayRows.slice(0, TRAIL_LIMIT_PER_DAY);
-      return sliced.reverse(); // chronological for polyline
-    }
-
-    /* Reverse-geocode cache */
-    async function getStreetName(lat,lng){
-      const key = lat.toFixed(5)+','+lng.toFixed(5);
-      if (addrCache.has(key)) return addrCache.get(key);
-      try{
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=en`,
-          { headers:{'User-Agent':'Widad-Shuttle-Viewer/1.0'} }
-        );
-        if (!res.ok){ addrCache.set(key,''); return ''; }
-        const js = await res.json();
-        const name = js.display_name || '';
-        addrCache.set(key,name);
-        return name;
-      }catch{
-        addrCache.set(key,'');
-        return '';
-      }
     }
 
     /* Pause follow on user interactions */
