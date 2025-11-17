@@ -6,211 +6,283 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
-    html, body { margin:0; height:100%; font-family:system-ui, sans-serif; background:#fff; }
-    #map { height:100%; width:100%; }
-    body { padding-bottom: calc(env(safe-area-inset-bottom, 0) + 4px); }
-    .leaflet-popup-content { font-size:.9rem; line-height:1.3; }
-
-    /* Remove default square behind divIcons */
-    .leaflet-div-icon {
-      background:transparent !important;
-      border:none !important;
+    html, body {
+      margin:0;
+      height:100%;
+      font-family:system-ui, sans-serif;
+      background:#fff;
     }
+    body {
+      padding-bottom: calc(env(safe-area-inset-bottom, 0) + 4px);
+    }
+    #map { height:100%; width:100%; }
+
+    .leaflet-popup-content { font-size:.9rem; line-height:1.3; }
+    .leaflet-div-icon { background:transparent!important; border:none!important; }
 
     /* Splash screen */
     #welcome {
-      position:fixed; inset:0; background:rgba(0,0,0,.8); color:#fff;
+      position:fixed; inset:0;
+      background:rgba(0,0,0,.8); color:#fff;
       display:flex; flex-direction:column; align-items:center; justify-content:center;
       font-size:1.6rem; z-index:1000; transition:opacity .8s;
     }
     #welcome.hide { opacity:0; pointer-events:none; }
 
-    /* Popup buttons */
-    .popup-btn-container { display:flex; justify-content:space-between; margin-top:6px; gap:6px; }
-    .popup-btn {
-      flex:1; text-align:center; background:#0078ff; color:#fff!important;
-      padding:6px 0; border-radius:6px; font-size:.8rem; text-decoration:none;
-    }
-    .popup-btn:hover { background:#005fcc; }
-
-    /* Legend */
-    .legend {
-      position:absolute; bottom:82px; left:10px;
-      background:rgba(255,255,255,.95); padding:6px 10px;
-      border-radius:8px; font-size:.9rem; box-shadow:0 2px 6px rgba(0,0,0,.25);
-      z-index:700; overflow-y:auto; max-height:60vh;
-      transform-origin: bottom left; transform: scaleY(1);
-      opacity: 1; transition: transform .25s ease, opacity .22s ease;
-    }
-    .legend.collapsed { transform: scaleY(0); opacity:0; pointer-events:none; }
-    .legend h4 { margin:0 0 2px; font-size:.95rem; }
-    .legend-caption {
-      font-size:.75rem;
-      color:#555;
-      margin-bottom:4px;
-    }
-    .legend-item {
-      display:flex; align-items:center; gap:6px; margin:3px 0;
-      cursor:pointer; padding:4px 6px; border-radius:8px;
-      transition: background .15s ease, box-shadow .15s ease;
-    }
-    .legend-item:hover { background:#e6f0ff; }
-    .legend-item.active { background:#dbe9ff; box-shadow:0 0 0 2px rgba(0,120,255,.25) inset; }
-    .colorbox { width:16px; height:10px; border-radius:3px; }
-
-    /* Status label */
-    .status {
-      position:absolute; top:10px; right:10px; z-index:700;
-      background:rgba(0,0,0,.7); color:#fff; padding:6px 10px;
-      border-radius:8px; font-size:.85rem;
+    /* Move zoom control near bottom-right (above buttons) */
+    .leaflet-control-zoom {
+      position:absolute !important;
+      bottom:56px;
+      right:10px;
+      top:auto;
+      left:auto;
     }
 
-    /* Overlay title */
+    /* Title overlay */
     .title-overlay {
       position:absolute;
-      top:10px;
+      top:6px;
       left:50%;
       transform:translateX(-50%);
-      z-index:720;
-      font-size:1.1rem;
+      z-index:750;
+      font-size:1.25rem;
       font-weight:700;
-      color:#ffffff;
-      text-shadow:0 0 4px rgba(0,0,0,.8), 0 0 10px rgba(0,0,0,.9);
+      color:#fff;
+      text-shadow:0 0 4px rgba(0,0,0,.9);
       pointer-events:none;
-      letter-spacing:0.03em;
-      text-align:center;
       white-space:nowrap;
     }
 
-    /* Route filter box */
-    .route-filter {
+    /* TOP BAR: Route filter + Today-only + Status + Logo */
+    .topbar {
       position:absolute;
-      top:46px;
-      left:10px;
-      z-index:720;
-      background:rgba(255,255,255,0.95);
-      padding:4px 8px;
-      border-radius:8px;
+      top:44px;
+      left:50%;
+      transform:translateX(-50%);
+      display:flex;
+      align-items:center;
+      gap:12px;
+      background:rgba(255,255,255,0.94);
+      padding:6px 10px;
+      border-radius:10px;
       box-shadow:0 2px 6px rgba(0,0,0,.25);
-      font-size:.85rem;
+      z-index:760;
+      max-width:calc(100vw - 16px);
+      box-sizing:border-box;
+    }
+    .route-filter {
       display:flex;
       align-items:center;
       gap:4px;
+      font-size:.85rem;
+      flex-wrap:wrap;
     }
     .route-filter label {
       font-weight:600;
     }
     .route-filter select {
       border-radius:6px;
-      border:1px solid #cbd5e0;
+      padding:3px 6px;
       font-size:.85rem;
-      padding:2px 4px;
+      border:1px solid #ccc;
       background:#fff;
     }
-    .route-filter .today-only-label {
-      font-weight:500;
+    .today-check {
       display:flex;
       align-items:center;
-      gap:2px;
-      margin-left:6px;
+      gap:3px;
       font-size:.8rem;
+      margin-left:4px;
     }
-    .route-filter .today-only-label input {
-      margin:0;
+    .today-check input { transform:translateY(1px); }
+
+    .status {
+      padding:4px 8px;
+      background:#004d00;
+      color:#fff;
+      font-size:.78rem;
+      border-radius:6px;
+      white-space:nowrap;
     }
 
-    /* Logo overlay (no box) */
     .logo-overlay {
-      position:absolute;
-      top:50px;
-      right:10px;
-      z-index:700;
+      display:flex;
+      align-items:center;
+      justify-content:center;
     }
     .logo-overlay img {
       width:78px;
       height:78px;
       object-fit:contain;
-      transition:transform .4s ease, filter .4s ease;
-      filter:drop-shadow(0 2px 6px rgba(0,0,0,.4));
-    }
-    .logo-overlay:hover img {
-      transform:scale(1.05);
-      filter:drop-shadow(0 0 10px rgba(0,120,255,.7));
+      filter:drop-shadow(0 2px 5px rgba(0,0,0,.45));
     }
 
-    /* Controls */
+    /* Popup action buttons */
+    .popup-btn-container {
+      display:flex;
+      justify-content:space-between;
+      margin-top:6px;
+      gap:6px;
+    }
+    .popup-btn {
+      flex:1;
+      text-align:center;
+      background:#0078ff;
+      color:#fff!important;
+      padding:6px 0;
+      border-radius:6px;
+      font-size:.8rem;
+      text-decoration:none;
+    }
+    .popup-btn:hover { background:#005fcc; }
+
+    /* Legend */
+    .legend {
+      position:absolute;
+      bottom:82px;
+      left:10px;
+      background:rgba(255,255,255,.95);
+      padding:6px 10px;
+      border-radius:8px;
+      font-size:.9rem;
+      box-shadow:0 2px 6px rgba(0,0,0,.25);
+      z-index:700;
+      max-height:60vh;
+      overflow-y:auto;
+    }
+    .legend h4 { margin:0 0 4px; font-size:.95rem; }
+    .legend-caption {
+      font-size:.75rem;
+      color:#444;
+      margin-bottom:4px;
+    }
+    .legend-item {
+      display:flex;
+      align-items:center;
+      gap:6px;
+      margin:3px 0;
+      padding:4px 6px;
+      cursor:pointer;
+      border-radius:8px;
+      transition:background .15s ease, box-shadow .15s ease;
+    }
+    .legend-item:hover { background:#e6f0ff; }
+    .legend-item.active {
+      background:#dbe9ff;
+      box-shadow:0 0 0 2px rgba(0,120,255,.25) inset;
+    }
+    .colorbox {
+      width:16px;
+      height:10px;
+      border-radius:3px;
+    }
+
+    /* Bottom controls row */
     .controls {
-      position:absolute; bottom:8px; left:50%; transform:translateX(-50%);
-      display:grid; grid-template-columns:repeat(9,36px); gap:6px;
-      z-index:800; max-width:calc(100vw - 16px);
+      position:absolute;
+      bottom:8px;
+      left:50%;
+      transform:translateX(-50%);
+      display:grid;
+      grid-template-columns:repeat(9,36px);
+      gap:6px;
+      z-index:800;
+      max-width:calc(100vw - 16px);
       padding-bottom:env(safe-area-inset-bottom,0);
     }
     .controls button {
-      width:36px; height:36px; border:none; border-radius:10px;
-      font-size:18px; cursor:pointer; background:rgba(255,255,255,.95);
+      width:36px;
+      height:36px;
+      border:none;
+      border-radius:10px;
+      font-size:18px;
+      cursor:pointer;
+      background:rgba(255,255,255,.95);
       box-shadow:0 2px 6px rgba(0,0,0,.25);
     }
     .controls button:active { transform:scale(.97); }
     .controls button[disabled] { opacity:.5; cursor:not-allowed; }
 
     @media (max-width:380px){
-      .controls{ grid-template-columns:repeat(9,32px); gap:4px; }
-      .controls button{ width:32px; height:32px; font-size:16px; border-radius:8px; }
+      .controls{
+        grid-template-columns:repeat(9,32px);
+        gap:4px;
+      }
+      .controls button{
+        width:32px;
+        height:32px;
+        font-size:16px;
+        border-radius:8px;
+      }
+      .topbar {
+        flex-wrap:wrap;
+        justify-content:center;
+      }
     }
 
-    /* Hide attributions completely */
-    .leaflet-control-attribution { display:none !important; }
+    /* Hide Leaflet attribution */
+    .leaflet-control-attribution { display:none!important; }
   </style>
 </head>
 <body>
-  <div id="welcome">🚌 <b>Welcome to Live Bus Viewer</b><br/><small style="opacity:.8)">Loading map…</small></div>
-
-  <div id="map"></div>
-
-  <!-- Centered overlay title -->
-  <div class="title-overlay">WIDAD UC SHUTTLE TRACKER</div>
-
-  <!-- Route filter + Today-only toggle -->
-  <div class="route-filter">
-    <label for="routeFilter">Route:</label>
-    <select id="routeFilter">
-      <option value="ALL">All Routes</option>
-    </select>
-    <label class="today-only-label">
-      <input type="checkbox" id="todayOnly" />
-      Today only
-    </label>
+  <!-- Splash -->
+  <div id="welcome">
+    🚌 <b>Welcome to Live Bus Viewer</b><br/>
+    <small style="opacity:.8">Loading map…</small>
   </div>
 
+  <!-- Title -->
+  <div class="title-overlay">WIDAD UC SHUTTLE TRACKER</div>
+
+  <!-- Top bar: filters + status + logo -->
+  <div class="topbar">
+    <div class="route-filter">
+      <label for="routeFilter">Route:</label>
+      <select id="routeFilter">
+        <option value="ALL">All Routes</option>
+      </select>
+
+      <label class="today-check">
+        <input type="checkbox" id="todayOnly" checked />
+        Today only
+      </label>
+    </div>
+
+    <div class="status" id="status">Loading…</div>
+
+    <div class="logo-overlay" id="logoOverlay">
+      <a href="https://www.widad.edu.my/uc/my" target="_blank">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/2/25/Widad_University_College_Logo.jpg"
+             alt="WIDAD University College Logo" />
+      </a>
+    </div>
+  </div>
+
+  <!-- Map -->
+  <div id="map"></div>
+
   <!-- Legend -->
-  <div class="legend" id="legend" aria-expanded="true">
+  <div class="legend" id="legend">
     <h4>🚌 Active Shuttles</h4>
     <div class="legend-caption">● dark green = updated today · black = older</div>
   </div>
-  <div class="status" id="status">Loading…</div>
 
-  <!-- Logo (Widad) -->
-  <a href="https://www.widad.edu.my/uc/my" target="_blank"
-     class="logo-overlay" id="logoOverlay" title="Visit Widad University College">
-    <img src="https://upload.wikimedia.org/wikipedia/commons/2/25/Widad_University_College_Logo.jpg"
-         alt="Widad University College Logo">
-  </a>
-
+  <!-- Bottom controls -->
   <div class="controls">
-    <button id="btnHome" title="Home">🏠</button>
-    <button id="btnPrev" title="Previous shuttle">◀️</button>
+    <button id="btnHome"    title="Home">🏠</button>
+    <button id="btnPrev"    title="Previous route">◀️</button>
     <button id="btnRecenter" title="Recenter">🔄</button>
-    <button id="btnNext" title="Next shuttle">▶️</button>
-    <button id="btnMyLoc" title="My location">📍</button>
+    <button id="btnNext"    title="Next route">▶️</button>
+    <button id="btnMyLoc"   title="My location">📍</button>
     <button id="btnMapType" title="Switch map">🗺️</button>
-    <button id="btnLegend" title="Hide Active Shuttles">🙈</button>
-    <button id="btnFollow" title="Follow shuttle">🎯</button>
-    <button id="btnWake" title="Keep screen on">💤</button>
+    <button id="btnLegend"  title="Hide Active Shuttles">🙈</button>
+    <button id="btnFollow"  title="Follow shuttle">🎯</button>
+    <button id="btnWake"    title="Keep screen on">💤</button>
   </div>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
-    /* Splash */
+    /* Splash fade */
     const welcome = document.getElementById('welcome');
     setTimeout(() => {
       welcome.classList.add('hide');
@@ -223,89 +295,83 @@
     const TRAIL_LIMIT_PER_DAY = 200;
     const HOME = L.latLng(3.543784470063409, 103.42902640748252);
 
-    /* Map & layers (no attribution) */
-    const map = L.map('map', { zoomControl:true, attributionControl:false }).setView([3.54,103.43],13);
-    const layers = {
-      osm:         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
+    const statusEl = document.getElementById('status');
+    const legendEl = document.getElementById('legend');
+    const routeFilterEl = document.getElementById('routeFilter');
+    const todayOnlyEl   = document.getElementById('todayOnly');
+
+    let statusHoldUntil = 0;
+    function setStatus(msg, holdMs = 0) {
+      statusEl.textContent = msg;
+      statusHoldUntil = holdMs > 0 ? (Date.now() + holdMs) : 0;
+    }
+    function maybeStatus(msg) {
+      if (Date.now() > statusHoldUntil) statusEl.textContent = msg;
+    }
+
+    /* Map and layers */
+    const map = L.map('map', { zoomControl:true, attributionControl:false })
+                 .setView([3.54, 103.43], 13);
+
+    const baseLayers = {
+      osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
       esriImagery: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'),
       esriStreets: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}')
     };
     map.createPane('labels');
     map.getPane('labels').style.zIndex = 650;
     map.getPane('labels').style.pointerEvents = 'none';
-    const labels = L.tileLayer(
+    const labelLayer = L.tileLayer(
       'https://stamen-tiles.a.ssl.fastly.net/toner-labels/{z}/{x}/{y}.png',
-      { pane:'labels', opacity:.9 }
+      { pane:'labels', opacity:0.9 }
     );
-    let baseOrder = ['osm','esriImagery','esriStreets'], baseIdx = 0;
-    let baseLayer = layers[baseOrder[baseIdx]].addTo(map);
-    if (!map.hasLayer(labels)) labels.addTo(map);
-    function switchMapType(){
+    let baseOrder = ['osm', 'esriImagery', 'esriStreets'];
+    let baseIdx = 0;
+    let baseLayer = baseLayers[baseOrder[baseIdx]].addTo(map);
+    labelLayer.addTo(map);
+
+    function switchMapType() {
       map.removeLayer(baseLayer);
-      baseIdx = (baseIdx+1) % baseOrder.length;
-      baseLayer = layers[baseOrder[baseIdx]].addTo(map);
-      if (!map.hasLayer(labels)) labels.addTo(map);
-    }
-
-    /* Status manager */
-    const statusEl = document.getElementById('status');
-    let statusHoldUntil = 0;
-    function setStatus(msg, holdMs=0){
-      statusEl.textContent = msg;
-      statusHoldUntil = holdMs > 0 ? (Date.now()+holdMs) : 0;
-    }
-    function maybeStatus(msg){
-      if (Date.now() > statusHoldUntil) statusEl.textContent = msg;
-    }
-
-    /* State */
-    const buses = {};
-    const legendEl = document.getElementById('legend');
-    const routeFilterSelect = document.getElementById('routeFilter');
-    const todayOnlyCheckbox = document.getElementById('todayOnly');
-
-    let routeFilter = 'ALL';
-    let todayOnly = false;
-    let busList = [], currentFocusId = null, myLocMarker = null;
-    let followEnabled = true, firstLoadDone = false;
-
-    function getFilteredBusList(){
-      const src = busList.filter(id => !todayOnly || (buses[id] && buses[id].isToday));
-      return src.filter(id => routeFilter === 'ALL' || routeFilter === id);
+      baseIdx = (baseIdx + 1) % baseOrder.length;
+      baseLayer = baseLayers[baseOrder[baseIdx]].addTo(map);
+      if (!map.hasLayer(labelLayer)) labelLayer.addTo(map);
+      setStatus('Map type switched', 1500);
     }
 
     /* Reverse geocode cache */
     const addrCache = new Map();
-    async function getStreetName(lat,lng){
-      const key = lat.toFixed(5)+','+lng.toFixed(5);
+    async function getStreetName(lat, lng) {
+      const key = lat.toFixed(5) + ',' + lng.toFixed(5);
       if (addrCache.has(key)) return addrCache.get(key);
-      try{
+      try {
         const res = await fetch(
           `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=en`,
-          { headers: { 'User-Agent': 'WidadUC-ShuttleViewer/1.0 (contact: admin@widad.edu.my)' } }
+          { headers:{'User-Agent':'WIDAD-UC-SUSTAIN-Viewer/1.0'} }
         );
-        if (!res.ok){ addrCache.set(key,''); return ''; }
+        if (!res.ok) { addrCache.set(key, ''); return ''; }
         const js = await res.json();
         const name = js.display_name || '';
         addrCache.set(key, name);
         return name;
-      }catch{
-        addrCache.set(key,'');
+      } catch {
+        addrCache.set(key, '');
         return '';
       }
     }
 
-    /* Muted color palette (no neon) */
+    /* Muted palette (no neon/bright green) */
     const mutedPalette = [
       '#2E86AB','#6C5B7B','#E07A5F','#3D405B','#8D99AE',
       '#2A9D8F','#7F7CAF','#E76F51','#5C677D','#9C6644',
       '#5B8FB9','#7D7461','#B56576','#6B705C','#7A9E9F'
     ];
     let paletteIdx = 0;
-    const nextMutedColor = () => mutedPalette[(paletteIdx++) % mutedPalette.length];
+    function nextColor() {
+      return mutedPalette[(paletteIdx++) % mutedPalette.length];
+    }
 
-    /* Circular bus icon (white circle, muted border) */
-    function makeBusIcon(id, color){
+    /* Circular shuttle icon */
+    function makeBusIcon(id, color) {
       return L.divIcon({
         className: 'bus-icon',
         html: `
@@ -322,132 +388,147 @@
       });
     }
 
-    /* Pause follow on user pan/zoom */
-    map.on('dragstart', ()=>{
-      if (followEnabled){
-        followEnabled=false;
-        btnFollow.textContent='🚫'; btnFollow.title='Follow OFF';
-        setStatus('Follow OFF (map moved)', 3000);
-      }
-    });
-    map.on('zoomstart', ()=>{
-      if (followEnabled){
-        followEnabled=false;
-        btnFollow.textContent='🚫'; btnFollow.title='Follow OFF';
-        setStatus('Follow OFF (zoom)', 3000);
-      }
-    });
-
-    function centerTo(ll){
+    function centerTo(ll) {
       map.setView(ll, map.getZoom(), { animate:true });
     }
 
-    /** Keep only today's points and cap to TRAIL_LIMIT_PER_DAY (most recent first). */
-    function todaysLimitedRows(rows){
-      if (!rows || !rows.length) return [];
-      const latestDate = new Date(rows[0].timestamp).toDateString();
-      const todayRows = rows.filter(r => new Date(r.timestamp).toDateString() === latestDate);
-      return todayRows.slice(0, TRAIL_LIMIT_PER_DAY).reverse(); // chronological
+    /* State */
+    let serverData = {};           // raw data from API
+    const buses = {};              // id -> { marker, trail, color, latestRow, fullTrail }
+    let busList = [];              // filtered IDs for prev/next
+    let currentFocusId = null;
+    let myLocMarker = null;
+    let followEnabled = true;
+    let firstLoadDone = false;
+
+    /* Pause follow on user pan/zoom */
+    map.on('dragstart', () => {
+      if (followEnabled) {
+        followEnabled = false;
+        btnFollow.textContent = '🚫';
+        btnFollow.title = 'Follow OFF';
+        setStatus('Follow OFF (map moved)', 2000);
+      }
+    });
+    map.on('zoomstart', () => {
+      if (followEnabled) {
+        followEnabled = false;
+        btnFollow.textContent = '🚫';
+        btnFollow.title = 'Follow OFF';
+        setStatus('Follow OFF (zoom)', 2000);
+      }
+    });
+
+    /* Helpers for date / trail trimming */
+    function isTodayRow(row) {
+      if (!row || !row.timestamp) return false;
+      const d = new Date(row.timestamp);
+      const now = new Date();
+      return d.toDateString() === now.toDateString();
     }
 
-    /** Popup HTML, conditional fields, "Route" label */
-    function buildPopup(id, row, addrText){
+    function computeTrailRows(rows) {
+      if (!rows || !rows.length) return [];
+      let filtered = rows.slice();
+
+      if (todayOnlyEl.checked) {
+        const latestDateStr = new Date(rows[0].timestamp).toDateString();
+        filtered = rows.filter(r => new Date(r.timestamp).toDateString() === latestDateStr);
+      }
+
+      // newest first in sheet → we want chronological for polyline
+      filtered = filtered.slice().reverse();
+
+      if (filtered.length > TRAIL_LIMIT_PER_DAY) {
+        filtered = filtered.slice(filtered.length - TRAIL_LIMIT_PER_DAY);
+      }
+      return filtered;
+    }
+
+    /* Popup builder – only show existing fields */
+    function buildPopup(id, row, addrText) {
       const lines = [];
-      if (row.destination)  lines.push(`Destination: ${row.destination}`);
-      if (row.driver)       lines.push(`Driver: ${row.driver}`);
-      if (row.plate)        lines.push(`Plate: ${row.plate}`);
-      if (row.speed_mps && row.speed_mps > 0)
+      if (row.destination) lines.push(`Destination: ${row.destination}`);
+      if (row.driver)      lines.push(`Driver: ${row.driver}`);
+      if (row.plate)       lines.push(`Plate: ${row.plate}`);
+      if (row.speed_mps && row.speed_mps > 0) {
         lines.push(`Speed: ${(row.speed_mps*3.6).toFixed(1)} km/h`);
-      if (addrText)         lines.push(`Current location: ${addrText}`);
-      if (row.timestamp)    lines.push(`Last update: ${new Date(row.timestamp).toLocaleString()}`);
+      }
+      if (addrText)        lines.push(`Current location: ${addrText}`);
+      if (row.timestamp)   lines.push(`Last update: ${new Date(row.timestamp).toLocaleString()}`);
 
       const link = `https://www.google.com/maps?q=${row.lat},${row.lng}`;
       const dir  = `https://www.google.com/maps/dir/?api=1&destination=${row.lat},${row.lng}`;
 
       return `
         <b>Route ${id}</b><br>
-        ${lines.join("<br>")}
+        ${lines.join('<br>')}
         <div class="popup-btn-container">
           <a href="${link}" target="_blank" class="popup-btn">📍 Open in Maps</a>
           <a href="${dir}"  target="_blank" class="popup-btn">🚗 Get Directions</a>
         </div>`;
     }
 
-    function rebuildBusList(data){
-      busList = Object.keys(data).sort();
-      if (!currentFocusId || !busList.includes(currentFocusId)){
-        currentFocusId = busList[0] || null;
-      }
-    }
+    /* Route filter helpers */
+    function rebuildRouteFilter() {
+      const ids = Object.keys(serverData).sort();
+      const prev = routeFilterEl.value || 'ALL';
 
-    function syncRouteFilterOptions(){
-      const currentVal = routeFilterSelect.value || 'ALL';
-      routeFilterSelect.innerHTML = '<option value="ALL">All Routes</option>';
-      const src = busList.filter(id => !todayOnly || (buses[id] && buses[id].isToday));
-      src.forEach(id=>{
+      routeFilterEl.innerHTML = '<option value="ALL">All Routes</option>';
+      ids.forEach(id => {
         const opt = document.createElement('option');
         opt.value = id;
         opt.textContent = id;
-        routeFilterSelect.appendChild(opt);
+        routeFilterEl.appendChild(opt);
       });
 
-      if (currentVal !== 'ALL' && src.includes(currentVal)){
-        routeFilterSelect.value = currentVal;
-        routeFilter = currentVal;
+      if (prev && (prev === 'ALL' || ids.includes(prev))) {
+        routeFilterEl.value = prev;
       } else {
-        routeFilterSelect.value = 'ALL';
-        routeFilter = 'ALL';
+        routeFilterEl.value = 'ALL';
       }
     }
 
-    function highlightLegend(id){
-      document.querySelectorAll('.legend-item').forEach(el=>el.classList.remove('active'));
+    function getActiveRouteIds() {
+      const ids = Object.keys(serverData).sort();
+      const sel = routeFilterEl.value;
+      if (sel === 'ALL' || !sel) return ids;
+      return ids.includes(sel) ? [sel] : ids;
+    }
+
+    /* Legend highlight */
+    function highlightLegend(id) {
+      document.querySelectorAll('.legend-item').forEach(el => el.classList.remove('active'));
       const row = document.querySelector(`.legend-item[data-busid="${CSS.escape(id)}"]`);
-      if (row){
+      if (row) {
         row.classList.add('active');
         row.scrollIntoView({ block:'nearest', inline:'nearest', behavior:'smooth' });
       }
     }
 
-    function updateTrailsForFocus(){
-      Object.keys(buses).forEach(id=>{
+    /* Show trail only for focused bus */
+    function updateVisibleTrails() {
+      Object.keys(buses).forEach(id => {
         const b = buses[id];
         if (!b) return;
-        if (id === currentFocusId){
-          b.trail.setLatLngs((b.allPts || []).map(p=>[+p.lat,+p.lng]));
-          b.trail.setStyle({ opacity:.85 });
+        if (id === currentFocusId) {
+          b.trail.setLatLngs(b.fullTrail || []);
+          b.trail.setStyle({ opacity:0.85 });
         } else {
           b.trail.setLatLngs([]);
+          b.trail.setStyle({ opacity:0 });
         }
       });
     }
 
-    function applyRouteFilterToMap(){
-      Object.keys(buses).forEach(id=>{
-        const b = buses[id];
-        if (!b) return;
-        const passesRoute = (routeFilter === 'ALL' || routeFilter === id);
-        const passesToday = (!todayOnly || b.isToday);
-        const passes = passesRoute && passesToday;
-
-        if (passes){
-          if (!map.hasLayer(b.marker)) b.marker.addTo(map);
-          if (!map.hasLayer(b.trail))  b.trail.addTo(map);
-        } else {
-          if (map.hasLayer(b.marker)) map.removeLayer(b.marker);
-          if (map.hasLayer(b.trail))  map.removeLayer(b.trail);
-        }
-      });
-      updateTrailsForFocus();
-    }
-
-    function focusBus(id, { openPopup=false } = {}){
+    function focusBus(id, { openPopup=false } = {}) {
       if (!id || !buses[id]) return;
       currentFocusId = id;
-      Object.keys(buses).forEach(k=>{
+
+      Object.keys(buses).forEach(k => {
         const b = buses[k];
         if (!b) return;
-        if (k === id){
+        if (k === id) {
           b.marker.setZIndexOffset(1000);
           b.trail.bringToFront();
         } else {
@@ -455,142 +536,150 @@
           b.trail.bringToBack();
         }
       });
-      updateTrailsForFocus();
+
+      updateVisibleTrails();
       if (followEnabled) centerTo(buses[id].marker.getLatLng());
       if (openPopup) buses[id].marker.openPopup();
       highlightLegend(id);
       setStatus(`Focused: Route ${id}`, 2000);
     }
 
-    function ensureMarkerClick(id){
+    function ensureMarkerClick(id) {
       const b = buses[id];
       if (!b || b._clickBound) return;
-      b.marker.on('click', async ()=>{
-        const lat = b.marker.getLatLng().lat;
-        const lng = b.marker.getLatLng().lng;
-        const addr = await getStreetName(lat,lng);
-        const latest = buses[id].latestRow || {};
-        b.marker.bindPopup( buildPopup(id, latest, addr) ).openPopup();
+      b.marker.on('click', async () => {
+        const ll = b.marker.getLatLng();
+        const addr = await getStreetName(ll.lat, ll.lng);
+        const latest = b.latestRow || {};
+        b.marker.bindPopup(buildPopup(id, latest, addr)).openPopup();
+        // recenters if followEnabled
         focusBus(id, { openPopup:false });
       });
       b._clickBound = true;
     }
 
-    function buildLegendEntry(id, dest, color, isToday){
+    function buildLegendEntry(id, dest, color, latestRow) {
+      const today = isTodayRow(latestRow);
       const d = document.createElement('div');
       d.className = 'legend-item';
       d.dataset.busid = id;
-      const textColor = isToday ? '#155724' : '#111111';
+      d.style.color = today ? '#006400' : '#000000';
       d.innerHTML = `
         <div class="colorbox" style="background:${color}"></div>
-        <div style="color:${textColor}">${id}${dest?` (${dest})`:''}</div>`;
+        <div>${id}${dest ? ` (${dest})` : ''}</div>`;
       d.onclick = () => {
-        if (buses[id]){
+        if (buses[id]) {
           followEnabled = true;
-          btnFollow.textContent='🎯'; btnFollow.title='Follow ON';
+          btnFollow.textContent = '🎯';
+          btnFollow.title = 'Follow ON';
           focusBus(id, { openPopup:false });
         }
       };
       return d;
     }
 
-    async function updateMap(data){
-      const ids = Object.keys(data);
+    async function renderForCurrentFilter() {
+      const ids = getActiveRouteIds();
       legendEl.innerHTML = `
         <h4>🚌 Active Shuttles</h4>
         <div class="legend-caption">● dark green = updated today · black = older</div>
       `;
       let any = false;
 
-      rebuildBusList(data);
-
-      const todayStr = new Date().toDateString();
-
-      for (const id of ids){
-        const rows = data[id];
+      // Update bus objects for active routes
+      for (const id of ids) {
+        const rows = serverData[id];
         if (!rows || !rows.length) continue;
         const latest = rows[0];
-        const lat = +latest.lat, lng = +latest.lng;
+
+        const lat = +latest.lat;
+        const lng = +latest.lng;
         if (!isFinite(lat) || !isFinite(lng)) continue;
         any = true;
 
-        const isToday = new Date(latest.timestamp).toDateString() === todayStr;
-
-        if (!buses[id]){
-          const color  = nextMutedColor();
-          const icon   = makeBusIcon(id, color);
-          const marker = L.marker([lat,lng], { icon });
-          const trail  = L.polyline([], { color, weight:5, opacity:.85 });
-          buses[id] = { marker, trail, color, latestRow: latest, allPts: [], isToday };
+        if (!buses[id]) {
+          const color = nextColor();
+          const icon = makeBusIcon(id, color);
+          const marker = L.marker([lat, lng], { icon }).addTo(map);
+          const trail = L.polyline([], { color, weight:5, opacity:0.85 }).addTo(map);
+          buses[id] = { marker, trail, color, latestRow: latest, fullTrail: [] };
         } else {
           buses[id].latestRow = latest;
-          buses[id].isToday = isToday;
         }
 
         const b = buses[id];
-        const dayPts = todaysLimitedRows(rows);
-        b.allPts = dayPts;
-        b.marker.setLatLng([lat,lng]);
+        const dayRows = computeTrailRows(rows);
+        b.fullTrail = dayRows.map(p => [ +p.lat, +p.lng ]);
+        b.marker.setLatLng([lat, lng]);
 
-        b.marker.bindPopup( buildPopup(id, latest, '') );
+        // Fast bind with empty address; real address on click
+        b.marker.bindPopup(buildPopup(id, latest, ''));
         ensureMarkerClick(id);
+
+        legendEl.appendChild(
+          buildLegendEntry(id, latest.destination, b.color, latest)
+        );
       }
 
-      // remove stale
-      Object.keys(buses).forEach(id=>{
-        if (!ids.includes(id)){
-          if (map.hasLayer(buses[id].marker)) map.removeLayer(buses[id].marker);
-          if (map.hasLayer(buses[id].trail))  map.removeLayer(buses[id].trail);
+      // Remove stale buses (not in serverData at all)
+      Object.keys(buses).forEach(id => {
+        if (!serverData[id]) {
+          map.removeLayer(buses[id].marker);
+          map.removeLayer(buses[id].trail);
           delete buses[id];
         }
       });
 
-      syncRouteFilterOptions();
+      // Build busList according to filter
+      busList = ids.slice();
+      if (!currentFocusId || !busList.includes(currentFocusId)) {
+        currentFocusId = busList[0] || null;
+      }
 
-      // Rebuild legend with filters
-      const idsForLegend = getFilteredBusList();
-      idsForLegend.forEach(id=>{
-        const b = buses[id];
-        if (!b) return;
-        legendEl.appendChild(
-          buildLegendEntry(id, b.latestRow.destination, b.color, b.isToday)
-        );
-      });
+      // Initial focus to first shuttle on first load
+      if (!firstLoadDone && currentFocusId) {
+        followEnabled = true;
+        btnFollow.textContent = '🎯';
+        btnFollow.title = 'Follow ON';
+        focusBus(currentFocusId, { openPopup:false });
+        firstLoadDone = true;
+      } else {
+        updateVisibleTrails();
+      }
 
-      applyRouteFilterToMap();
-
-      if (!firstLoadDone){
-        const filtered = getFilteredBusList();
-        if (filtered.length){
-          currentFocusId = filtered[0];
-          followEnabled = true;
-          btnFollow.textContent='🎯'; btnFollow.title='Follow ON';
-          focusBus(currentFocusId, { openPopup:false });
-          firstLoadDone = true;
+      if (currentFocusId && buses[currentFocusId]) {
+        highlightLegend(currentFocusId);
+        if (followEnabled) {
+          centerTo(buses[currentFocusId].marker.getLatLng());
         }
       }
-
-      if (followEnabled && currentFocusId && buses[currentFocusId]){
-        centerTo(buses[currentFocusId].marker.getLatLng());
-      }
-      if (currentFocusId){ highlightLegend(currentFocusId); }
 
       maybeStatus(any ? `Updated: ${new Date().toLocaleTimeString()}` : 'No shuttles yet');
     }
 
-    async function refresh(){
-      try{
-        const res = await fetch(WEB_APP_URL+'?json=1', { cache:'no-store' });
-        const js  = await res.json();
-        if (js && js.ok) updateMap(js.buses);
-        else maybeStatus('Failed to load data');
-      }catch(e){
+    async function updateFromServer(data) {
+      serverData = data || {};
+      rebuildRouteFilter();
+      await renderForCurrentFilter();
+    }
+
+    async function refresh() {
+      try {
+        const res = await fetch(WEB_APP_URL + '?json=1', { cache:'no-store' });
+        const js = await res.json();
+        if (js && js.ok) {
+          await updateFromServer(js.buses);
+        } else {
+          maybeStatus('Failed to load data');
+        }
+      } catch (e) {
         maybeStatus('Fetch failed');
         console.warn('Fetch failed:', e);
       }
     }
+
     refresh();
-    setInterval(refresh, REFRESH_SEC*1000);
+    setInterval(refresh, REFRESH_SEC * 1000);
 
     /* Controls */
     const btnHome     = document.getElementById('btnHome');
@@ -603,139 +692,108 @@
     const btnFollow   = document.getElementById('btnFollow');
     const btnWake     = document.getElementById('btnWake');
 
-    btnHome.onclick = ()=>{
+    btnHome.onclick = () => {
       centerTo(HOME);
-      followEnabled=false; btnFollow.textContent='🚫'; btnFollow.title='Follow OFF';
-      setStatus('Home view (follow OFF)', 3000);
+      followEnabled = false;
+      btnFollow.textContent = '🚫';
+      btnFollow.title = 'Follow OFF';
+      setStatus('Home view (follow OFF)', 2000);
     };
 
-    btnPrev.onclick = ()=>{
-      const list = getFilteredBusList();
-      if (!list.length) return;
-      const idx = list.indexOf(currentFocusId);
-      const id  = (idx <= 0) ? list[list.length-1] : list[idx-1];
+    btnPrev.onclick = () => {
+      if (!busList.length) return;
+      const idx = busList.indexOf(currentFocusId);
+      const id  = (idx <= 0) ? busList[busList.length - 1] : busList[idx - 1];
       followEnabled = true;
-      btnFollow.textContent='🎯'; btnFollow.title='Follow ON';
+      btnFollow.textContent = '🎯';
+      btnFollow.title = 'Follow ON';
       focusBus(id, { openPopup:false });
     };
 
-    btnNext.onclick = ()=>{
-      const list = getFilteredBusList();
-      if (!list.length) return;
-      const idx = list.indexOf(currentFocusId);
-      const id  = list[(idx+1) % list.length];
+    btnNext.onclick = () => {
+      if (!busList.length) return;
+      const idx = busList.indexOf(currentFocusId);
+      const id  = busList[(idx + 1) % busList.length];
       followEnabled = true;
-      btnFollow.textContent='🎯'; btnFollow.title='Follow ON';
+      btnFollow.textContent = '🎯';
+      btnFollow.title = 'Follow ON';
       focusBus(id, { openPopup:false });
     };
 
-    btnRecenter.onclick = ()=>{
-      if (currentFocusId && buses[currentFocusId]){
+    btnRecenter.onclick = () => {
+      if (currentFocusId && buses[currentFocusId]) {
         followEnabled = true;
-        btnFollow.textContent='🎯'; btnFollow.title='Follow ON';
+        btnFollow.textContent = '🎯';
+        btnFollow.title = 'Follow ON';
         centerTo(buses[currentFocusId].marker.getLatLng());
-        setStatus('Recentered (follow ON)', 2500);
+        setStatus('Recentered (follow ON)', 2000);
         highlightLegend(currentFocusId);
       } else {
-        setStatus('No focused route', 3000);
+        setStatus('No focused route', 2000);
       }
     };
 
-    btnMyLoc.onclick = ()=>{
-      if (!navigator.geolocation){
-        setStatus('Geolocation unsupported', 3000);
+    btnMyLoc.onclick = () => {
+      if (!navigator.geolocation) {
+        setStatus('Geolocation unsupported', 2000);
         return;
       }
-      navigator.geolocation.getCurrentPosition(pos=>{
-        const ll = L.latLng(pos.coords.latitude,pos.coords.longitude);
-        if (!myLocMarker){
-          myLocMarker = L.marker(ll,{
-            icon:L.divIcon({
+      navigator.geolocation.getCurrentPosition(pos => {
+        const ll = L.latLng(pos.coords.latitude, pos.coords.longitude);
+        if (!myLocMarker) {
+          myLocMarker = L.marker(ll, {
+            icon: L.divIcon({
               className:'myloc',
               html:'<div style="font-size:22px">📍</div>',
-              iconSize:[24,24],
-              iconAnchor:[12,22]
+              iconSize:[24,24], iconAnchor:[12,22]
             })
           }).addTo(map);
         } else {
           myLocMarker.setLatLng(ll);
         }
         centerTo(ll);
-        followEnabled=false;
-        btnFollow.textContent='🚫'; btnFollow.title='Follow OFF';
-        setStatus('My location (follow OFF)', 3000);
-      }, err=>{
-        setStatus('GPS error: '+err.message, 3000);
-      }, { enableHighAccuracy:true });
+        followEnabled = false;
+        btnFollow.textContent = '🚫';
+        btnFollow.title = 'Follow OFF';
+        setStatus('My location (follow OFF)', 2000);
+      }, err => setStatus('GPS error: ' + err.message, 2500), { enableHighAccuracy:true });
     };
 
-    btnMapType.onclick = ()=>{
-      switchMapType();
-      setStatus('Map type switched', 2000);
+    btnMapType.onclick = () => switchMapType();
+
+    btnLegend.onclick = () => {
+      const hidden = legendEl.style.display === 'none';
+      legendEl.style.display = hidden ? 'block' : 'none';
+      btnLegend.textContent = hidden ? '🙈' : '👁️';
+      btnLegend.title = hidden ? 'Hide Active Shuttles' : 'Show Active Shuttles';
+      setStatus(hidden ? 'Active shuttles shown' : 'Active shuttles hidden', 1500);
     };
 
-    btnLegend.onclick = ()=>{
-      const c = legendEl.classList.toggle('collapsed');
-      legendEl.setAttribute('aria-expanded', String(!c));
-      btnLegend.textContent = c ? '👁️' : '🙈';
-      btnLegend.title = c ? 'Show Active Shuttles' : 'Hide Active Shuttles';
-      setStatus(c ? 'Active shuttles hidden' : 'Active shuttles shown', 2000);
-    };
-
-    btnFollow.onclick = ()=>{
+    btnFollow.onclick = () => {
       followEnabled = !followEnabled;
       btnFollow.textContent = followEnabled ? '🎯' : '🚫';
-      btnFollow.title       = followEnabled ? 'Follow ON' : 'Follow OFF';
-      setStatus(followEnabled ? 'Follow ON' : 'Follow OFF', 2000);
-      if (followEnabled && currentFocusId && buses[currentFocusId]){
+      btnFollow.title = followEnabled ? 'Follow ON' : 'Follow OFF';
+      setStatus(followEnabled ? 'Follow ON' : 'Follow OFF', 1500);
+      if (followEnabled && currentFocusId && buses[currentFocusId]) {
         centerTo(buses[currentFocusId].marker.getLatLng());
         highlightLegend(currentFocusId);
       }
     };
 
-    /* Route filter change */
-    routeFilterSelect.addEventListener('change', ()=>{
-      routeFilter = routeFilterSelect.value || 'ALL';
-      const list = getFilteredBusList();
-      applyRouteFilterToMap();
-
-      if (!list.length){
-        currentFocusId = null;
-        setStatus('No routes in filter', 2000);
-        return;
-      }
-      if (!list.includes(currentFocusId)){
-        currentFocusId = list[0];
-      }
-      focusBus(currentFocusId, { openPopup:false });
-      setStatus(routeFilter === 'ALL'
-        ? 'Showing all routes'
-        : `Filter: Route ${routeFilter}`, 2000);
+    routeFilterEl.addEventListener('change', async () => {
+      const sel = routeFilterEl.value;
+      if (sel !== 'ALL') currentFocusId = sel;
+      await renderForCurrentFilter();
+    });
+    todayOnlyEl.addEventListener('change', async () => {
+      await renderForCurrentFilter();
     });
 
-    todayOnlyCheckbox.addEventListener('change', ()=>{
-      todayOnly = todayOnlyCheckbox.checked;
-      syncRouteFilterOptions();
-      const list = getFilteredBusList();
-      applyRouteFilterToMap();
-
-      if (!list.length){
-        currentFocusId = null;
-        setStatus(todayOnly ? 'No routes updated today' : 'No routes in filter', 2000);
-        return;
-      }
-      if (!list.includes(currentFocusId)){
-        currentFocusId = list[0];
-      }
-      focusBus(currentFocusId, { openPopup:false });
-      setStatus(todayOnly ? 'Showing only today\'s routes' : 'Showing all days', 2000);
-    });
-
-    /* Wake Lock (Screen) */
+    /* Wake Lock */
     let wakeLock = null;
-    async function requestWakeLock(){
-      try{
-        if ('wakeLock' in navigator && !wakeLock){
+    async function requestWakeLock() {
+      try {
+        if ('wakeLock' in navigator && !wakeLock) {
           wakeLock = await navigator.wakeLock.request('screen');
           btnWake.textContent = '🔆';
           btnWake.title = 'Screen awake (tap to release)';
@@ -743,38 +801,43 @@
           wakeLock.addEventListener('release', () => {
             wakeLock = null;
             btnWake.textContent = '💤';
-            btnWake.title = 'Keep screen awake (Wake Lock)';
+            btnWake.title = 'Keep screen on';
             setStatus('Wake Lock released', 1500);
           });
         }
-      }catch(err){
+      } catch (err) {
         setStatus('Wake Lock failed: ' + (err && err.message ? err.message : err), 2500);
         btnWake.textContent = '💤';
-        btnWake.title = 'Keep screen awake (Wake Lock)';
+        btnWake.title = 'Keep screen on';
       }
     }
-    async function releaseWakeLock(){
-      try{ if (wakeLock){ await wakeLock.release(); } }catch{}
+    async function releaseWakeLock() {
+      try {
+        if (wakeLock) await wakeLock.release();
+      } catch {}
       wakeLock = null;
       btnWake.textContent = '💤';
-      btnWake.title = 'Keep screen awake (Wake Lock)';
+      btnWake.title = 'Keep screen on';
       setStatus('Wake Lock OFF', 1200);
     }
-    btnWake.onclick = async ()=>{
-      if (!('wakeLock' in navigator)){
+
+    btnWake.onclick = async () => {
+      if (!('wakeLock' in navigator)) {
         setStatus('Wake Lock not supported on this browser', 2500);
         btnWake.disabled = true;
         return;
       }
       if (wakeLock) await releaseWakeLock(); else await requestWakeLock();
     };
-    document.addEventListener('visibilitychange', async ()=>{
-      if (document.visibilityState === 'visible' && wakeLock){
+
+    document.addEventListener('visibilitychange', async () => {
+      if (document.visibilityState === 'visible' && wakeLock) {
         wakeLock = null;
         await requestWakeLock();
       }
     });
-    if (!('wakeLock' in navigator)){
+
+    if (!('wakeLock' in navigator)) {
       btnWake.disabled = true;
       btnWake.title = 'Wake Lock not supported';
     }
