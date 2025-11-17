@@ -404,22 +404,33 @@
     let baseLayer = layers[baseOrder[baseIdx]].addTo(map);
     if (!map.hasLayer(labels)) labels.addTo(map);
 
-    /* Home marker */
+    /* Shared circular chip style for markers (home & my location) */
+    function makeCircleChip(contentEmoji, borderColor) {
+      return `
+        <div style="
+          width:40px;height:40px;
+          border-radius:50%;
+          background:#fff;
+          border:3px solid ${borderColor};
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          box-shadow:0 2px 6px rgba(0,0,0,.3);
+        ">
+          <div style="font-size:20px;line-height:20px;">${contentEmoji}</div>
+        </div>
+      `;
+    }
+
+    /* Home marker – green circle chip */
     const homeMarker = L.marker(HOME, {
       icon: L.divIcon({
         className:'home-marker',
-        html:'<div style="font-size:22px">🏫</div>',
-        iconSize:[24,24],
-        iconAnchor:[12,22]
+        html: makeCircleChip('🏫', '#2E7D32'),
+        iconSize:[44,44],
+        iconAnchor:[22,22]
       })
     }).addTo(map);
-
-    function switchMapType(){
-      map.removeLayer(baseLayer);
-      baseIdx = (baseIdx+1)%baseOrder.length;
-      baseLayer = layers[baseOrder[baseIdx]].addTo(map);
-      if (!map.hasLayer(labels)) labels.addTo(map);
-    }
 
     /* Status manager */
     let statusHoldUntil = 0;
@@ -431,6 +442,35 @@
       if (Date.now()>statusHoldUntil) statusEl.textContent = msg;
     }
 
+    /* Palette (muted colors) */
+    const mutedPalette = [
+      '#2E86AB','#6C5B7B','#E07A5F','#3D405B','#8D99AE',
+      '#2A9D8F','#7F7CAF','#E76F51','#5C677D','#9C6644',
+      '#5B8FB9','#7D7461','#B56576','#6B705C','#7A9E9F'
+    ];
+    let paletteIdx = 0;
+    const nextMutedColor = () => mutedPalette[(paletteIdx++) % mutedPalette.length];
+
+    /* Circular bus icon (already circle) */
+    function makeBusIcon(id,color){
+      return L.divIcon({
+        className:'bus-icon',
+        html:`
+          <div style="
+            width:44px;height:44px;border-radius:50%;
+            background:#fff;border:3px solid ${color};
+            display:flex;flex-direction:column;align-items:center;justify-content:center;
+            box-shadow:0 2px 6px rgba(0,0,0,.3);">
+            <div style="font-size:12px;color:${color};font-weight:700;line-height:12px;">
+              ${id}
+            </div>
+            <div style="font-size:20px;line-height:20px;">🚌</div>
+          </div>`,
+        iconSize:[44,44],
+        iconAnchor:[22,22]
+      });
+    }
+
     /* State */
     const buses = {}; // id -> {marker, trail, color, latestRow}
     let busList = [];
@@ -439,6 +479,25 @@
     let followEnabled = true;
     let firstLoadDone = false;
     let lastSnapshot = null;
+
+    function centerTo(ll){
+      map.setView(ll, map.getZoom(), { animate:true });
+    }
+
+    function isTodayDate(ts){
+      if(!ts) return false;
+      const d = new Date(ts);
+      return d.toDateString() === new Date().toDateString();
+    }
+
+    /* Trails: only today's points, up to TRAIL_LIMIT_PER_DAY */
+    function todaysLimitedRows(rows){
+      if(!rows || !rows.length) return [];
+      const todayStr = new Date().toDateString();
+      const todayRows = rows.filter(r => new Date(r.timestamp).toDateString() === todayStr);
+      const sliced = todayRows.slice(0, TRAIL_LIMIT_PER_DAY);
+      return sliced.reverse(); // chronological for polyline
+    }
 
     /* Reverse-geocode cache */
     const addrCache = new Map();
@@ -459,54 +518,6 @@
         addrCache.set(key,'');
         return '';
       }
-    }
-
-    /* Palette (muted colors) */
-    const mutedPalette = [
-      '#2E86AB','#6C5B7B','#E07A5F','#3D405B','#8D99AE',
-      '#2A9D8F','#7F7CAF','#E76F51','#5C677D','#9C6644',
-      '#5B8FB9','#7D7461','#B56576','#6B705C','#7A9E9F'
-    ];
-    let paletteIdx = 0;
-    const nextMutedColor = () => mutedPalette[(paletteIdx++) % mutedPalette.length];
-
-    /* Circular bus icon */
-    function makeBusIcon(id,color){
-      return L.divIcon({
-        className:'bus-icon',
-        html:`
-          <div style="
-            width:44px;height:44px;border-radius:50%;
-            background:#fff;border:3px solid ${color};
-            display:flex;flex-direction:column;align-items:center;justify-content:center;
-            box-shadow:0 2px 6px rgba(0,0,0,.3);">
-            <div style="font-size:12px;color:${color};font-weight:700;line-height:12px;">
-              ${id}
-            </div>
-            <div style="font-size:20px;line-height:20px;">🚌</div>
-          </div>`,
-        iconSize:[44,44],
-        iconAnchor:[22,22]
-      });
-    }
-
-    function centerTo(ll){
-      map.setView(ll, map.getZoom(), { animate:true });
-    }
-
-    function isTodayDate(ts){
-      if(!ts) return false;
-      const d = new Date(ts);
-      return d.toDateString() === new Date().toDateString();
-    }
-
-    /* Trails: only today's points, up to TRAIL_LIMIT_PER_DAY */
-    function todaysLimitedRows(rows){
-      if(!rows || !rows.length) return [];
-      const todayStr = new Date().toDateString();
-      const todayRows = rows.filter(r => new Date(r.timestamp).toDateString() === todayStr);
-      const sliced = todayRows.slice(0, TRAIL_LIMIT_PER_DAY);
-      return sliced.reverse(); // chronological for polyline
     }
 
     /* Popup HTML: conditional fields */
@@ -636,6 +647,35 @@
       };
 
       return d;
+    }
+
+    /* Trails: only today's points, up to TRAIL_LIMIT_PER_DAY */
+    function todaysLimitedRows(rows){
+      if(!rows || !rows.length) return [];
+      const todayStr = new Date().toDateString();
+      const todayRows = rows.filter(r => new Date(r.timestamp).toDateString() === todayStr);
+      const sliced = todayRows.slice(0, TRAIL_LIMIT_PER_DAY);
+      return sliced.reverse(); // chronological for polyline
+    }
+
+    /* Reverse-geocode cache */
+    async function getStreetName(lat,lng){
+      const key = lat.toFixed(5)+','+lng.toFixed(5);
+      if (addrCache.has(key)) return addrCache.get(key);
+      try{
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=en`,
+          { headers:{'User-Agent':'Widad-Shuttle-Viewer/1.0'} }
+        );
+        if (!res.ok){ addrCache.set(key,''); return ''; }
+        const js = await res.json();
+        const name = js.display_name || '';
+        addrCache.set(key,name);
+        return name;
+      }catch{
+        addrCache.set(key,'');
+        return '';
+      }
     }
 
     /* Pause follow on user interactions */
@@ -848,10 +888,10 @@
         if (!myLocMarker){
           myLocMarker = L.marker(ll,{
             icon:L.divIcon({
-              className:'myloc',
-              html:'<div style="font-size:22px">📍</div>',
-              iconSize:[24,24],
-              iconAnchor:[12,22]
+              className:'myloc-marker',
+              html: makeCircleChip('📍', '#1565C0'),
+              iconSize:[44,44],
+              iconAnchor:[22,22]
             })
           }).addTo(map);
         } else {
@@ -868,7 +908,10 @@
     };
 
     btnMapType.onclick = ()=>{
-      switchMapType();
+      map.removeLayer(baseLayer);
+      baseIdx = (baseIdx+1)%baseOrder.length;
+      baseLayer = layers[baseOrder[baseIdx]].addTo(map);
+      if (!map.hasLayer(labels)) labels.addTo(map);
       setStatus('Map type switched', 1500);
     };
 
