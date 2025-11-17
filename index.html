@@ -11,6 +11,12 @@
     body { padding-bottom: calc(env(safe-area-inset-bottom, 0) + 4px); }
     .leaflet-popup-content { font-size:.9rem; line-height:1.3; }
 
+    /* ⛔ Remove default Leaflet square around divIcon markers */
+    .leaflet-div-icon {
+      background: transparent !important;
+      border: none !important;
+    }
+
     /* Splash screen */
     #welcome {
       position:fixed; inset:0; background:rgba(0,0,0,.8); color:#fff;
@@ -102,246 +108,243 @@
   <div class="legend" id="legend" aria-expanded="true"><h4>🚌 Active Buses</h4></div>
   <div class="status" id="status">Loading…</div>
 
-  <!-- Widad UC Logo -->
-  <a href="https://www.widad.edu.my/uc/my" target="_blank"
+<!-- Widad University College Logo -->
+<a href="https://www.widad.edu.my/uc/my" target="_blank"
      class="logo-overlay" id="logoOverlay">
-    <img src="https://pbs.twimg.com/profile_images/1281083290254893056/gGxC3vN3_400x400.jpg">
-  </a>
+  <img src="https://upload.wikimedia.org/wikipedia/commons/2/25/Widad_University_College_Logo.jpg"
+       alt="Widad University College Logo">
+</a>
 
   <div class="controls">
-    <button id="btnHome">🏠</button>
-    <button id="btnPrev">◀️</button>
-    <button id="btnRecenter">🔄</button>
-    <button id="btnNext">▶️</button>
-    <button id="btnMyLoc">📍</button>
-    <button id="btnMapType">🗺️</button>
-    <button id="btnLegend">🙈</button>
-    <button id="btnFollow">🎯</button>
-    <button id="btnWake">💤</button>
+    <button id="btnHome" title="Home">🏠</button>
+    <button id="btnPrev" title="Previous bus">◀️</button>
+    <button id="btnRecenter" title="Recenter">🔄</button>
+    <button id="btnNext" title="Next bus">▶️</button>
+    <button id="btnMyLoc" title="My location">📍</button>
+    <button id="btnMapType" title="Switch map">🗺️</button>
+    <button id="btnLegend" title="Hide Active Buses">🙈</button>
+    <button id="btnFollow" title="Follow bus">🎯</button>
+    <button id="btnWake" title="Keep screen on">💤</button>
   </div>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
-
-    /* Splash / Logo */
+    /* Splash + logo */
     const welcome=document.getElementById('welcome');
     const logoOverlay=document.getElementById('logoOverlay');
-    setTimeout(()=>{ welcome.classList.add('hide'); logoOverlay.classList.add('show'); setTimeout(()=>welcome.remove(),1000); },2000);
+    setTimeout(()=>{
+      welcome.classList.add('hide');
+      logoOverlay.classList.add('show');
+      setTimeout(()=>welcome.remove(),1000);
+    },2000);
 
-    /* CONFIG */
+    /* Config */
     const WEB_APP_URL="https://script.google.com/macros/s/AKfycby6mh0UYXsQyms8ZHWGl5fgDM2yUCBH7TfQ53zTS810KGLS8rLFFcijVTpGpoo2Ab5uAg/exec";
     const REFRESH_SEC=10;
     const TRAIL_LIMIT_PER_DAY=200;
     const HOME=L.latLng(3.543784470063409,103.42902640748252);
 
-    /* MAP */
+    /* Map & layers (no attribution) */
     const map=L.map('map',{zoomControl:true,attributionControl:false}).setView([3.54,103.43],13);
     const layers={
       osm:L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
-      img:L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'),
-      streets:L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}')
+      esriImagery:L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'),
+      esriStreets:L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}')
     };
-
     map.createPane('labels');
     map.getPane('labels').style.zIndex=650;
     map.getPane('labels').style.pointerEvents='none';
-
     const labels=L.tileLayer('https://stamen-tiles.a.ssl.fastly.net/toner-labels/{z}/{x}/{y}.png',{pane:'labels',opacity:.9});
-
-    let baseOrder=['osm','img','streets'], baseIdx=0;
+    let baseOrder=['osm','esriImagery','esriStreets'],baseIdx=0;
     let baseLayer=layers[baseOrder[baseIdx]].addTo(map);
-    labels.addTo(map);
-
+    if(!map.hasLayer(labels))labels.addTo(map);
     function switchMapType(){
       map.removeLayer(baseLayer);
       baseIdx=(baseIdx+1)%baseOrder.length;
       baseLayer=layers[baseOrder[baseIdx]].addTo(map);
-      if(!map.hasLayer(labels)) labels.addTo(map);
+      if(!map.hasLayer(labels))labels.addTo(map);
     }
 
-    /* STATUS */
+    /* Status manager */
     const statusEl=document.getElementById('status');
-    let statusHoldUntil=0;
-    function setStatus(msg,hold=0){ statusEl.textContent=msg; statusHoldUntil=hold?Date.now()+hold:0; }
-    function maybeStatus(msg){ if(Date.now()>statusHoldUntil) statusEl.textContent=msg; }
+    let statusHoldUntil = 0;
+    function setStatus(msg, holdMs=0){ statusEl.textContent=msg; statusHoldUntil = holdMs>0 ? (Date.now()+holdMs) : 0; }
+    function maybeStatus(msg){ if(Date.now()>statusHoldUntil){ statusEl.textContent=msg; } }
 
-    /* STATE */
-    const buses={};
-    const legendEl=document.getElementById('legend');
+    /* State */
+    const buses={}, legendEl=document.getElementById('legend');
     let busList=[], currentFocusId=null, myLocMarker=null;
     let followEnabled=true, firstLoadDone=false;
 
-    /* Reverse Geocode Cache */
-    const addrCache=new Map();
+    /* Reverse geocode cache */
+    const addrCache = new Map();
     async function getStreetName(lat,lng){
-      const key=lat.toFixed(5)+','+lng.toFixed(5);
-      if(addrCache.has(key)) return addrCache.get(key);
+      const key = lat.toFixed(5)+','+lng.toFixed(5);
+      if (addrCache.has(key)) return addrCache.get(key);
       try{
-        const res=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=en`);
-        const js=await res.json();
-        const name=js.display_name||'';
-        addrCache.set(key,name);
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=en`, {
+          headers: { 'User-Agent': 'UMPSA-BusViewer/1.0 (contact: webmaster@umpsa.edu.my)' }
+        });
+        if (!res.ok) { addrCache.set(key, ''); return ''; }
+        const js = await res.json();
+        const name = js.display_name || '';
+        addrCache.set(key, name);
         return name;
-      }catch{ addrCache.set(key,''); return ''; }
+      }catch{
+        addrCache.set(key,'');
+        return '';
+      }
     }
 
-    /* Muted Colors */
-    const muted=[
-      '#2E86AB','#6C5B7B','#E07A5F','#3D405B','#8D99AE',
-      '#2A9D8F','#7F7CAF','#E76F51','#5C677D','#9C6644',
-      '#5B8FB9','#7D7461','#B56576','#6B705C','#7A9E9F'
+    /* Muted color palette (no neon/bright green) */
+    const mutedPalette = [
+      '#2E86AB', '#6C5B7B', '#E07A5F', '#3D405B', '#8D99AE',
+      '#2A9D8F', '#7F7CAF', '#E76F51', '#5C677D', '#9C6644',
+      '#5B8FB9', '#7D7461', '#B56576', '#6B705C', '#7A9E9F'
     ];
-    let colIdx=0;  
-    const nextColor=()=>muted[(colIdx++)%muted.length];
+    let paletteIdx = 0;
+    const nextMutedColor = () => mutedPalette[(paletteIdx++) % mutedPalette.length];
 
-    /* Bus Icon */
+    /* Circular bus icon (white circle, muted border, no square) */
     function makeBusIcon(id,color){
       return L.divIcon({
-        html:`<div style="width:46px;height:46px;border-radius:50%;
-               background:#fff;border:3px solid ${color};
-               display:flex;flex-direction:column;align-items:center;justify-content:center;
-               box-shadow:0 2px 6px rgba(0,0,0,.35);">
-                <div style="font-size:12px;color:${color};font-weight:700;">${id}</div>
-                <div style="font-size:20px;">🚌</div>
-              </div>`,
+        className:'bus-icon',
+        html:`
+          <div style="
+            width:46px;height:46px;border-radius:50%;
+            background:#fff;border:3px solid ${color};
+            display:flex;flex-direction:column;align-items:center;justify-content:center;
+            box-shadow:0 2px 6px rgba(0,0,0,.35);">
+            <div style="font-size:12px;color:${color};font-weight:700;line-height:12px;">${id}</div>
+            <div style="font-size:20px;line-height:20px;">🚌</div>
+          </div>`,
         iconSize:[46,46],iconAnchor:[23,23]
       });
     }
 
-    /* Follow off on map movement */
-    map.on('dragstart',()=>{
-      if(followEnabled){
-        followEnabled=false;
-        btnFollow.textContent='🚫';
-        btnFollow.title='Follow OFF';
-        setStatus('Follow OFF (drag)',2000);
-      }
-    });
-    map.on('zoomstart',()=>{
-      if(followEnabled){
-        followEnabled=false;
-        btnFollow.textContent='🚫';
-        btnFollow.title='Follow OFF';
-        setStatus('Follow OFF (zoom)',2000);
-      }
-    });
+    /* Pause follow on user pan/zoom */
+    map.on('dragstart', ()=>{ if(followEnabled){ followEnabled=false; btnFollow.textContent='🚫'; btnFollow.title='Follow OFF'; setStatus('Follow OFF (map moved)', 3000); }});
+    map.on('zoomstart', ()=>{ if(followEnabled){ followEnabled=false; btnFollow.textContent='🚫'; btnFollow.title='Follow OFF'; setStatus('Follow OFF (zoom)', 3000); }});
 
-    function centerTo(ll){ map.setView(ll,map.getZoom(),{animate:true}); }
+    function centerTo(ll){ map.setView(ll, map.getZoom(), { animate:true }); }
 
-    /* Trail limiter */
+    /** Keep only today's points and cap to TRAIL_LIMIT_PER_DAY (most recent first). */
     function todaysLimitedRows(rows){
-      const today=new Date(rows[0].timestamp).toDateString();
-      const t=rows.filter(r=>new Date(r.timestamp).toDateString()===today);
-      return t.slice(0,TRAIL_LIMIT_PER_DAY).reverse();
+      if(!rows||!rows.length) return [];
+      const latestDate = new Date(rows[0].timestamp).toDateString();
+      const todayRows = rows.filter(r => new Date(r.timestamp).toDateString() === latestDate);
+      return todayRows.slice(0, TRAIL_LIMIT_PER_DAY).reverse(); // chronological for polyline
     }
 
-    /* Popup builder */
-    function buildPopup(id,row,addr){
-      const lines=[];
-      if(row.destination) lines.push(`Destination: ${row.destination}`);
-      if(row.driver)      lines.push(`Driver: ${row.driver}`);
-      if(row.plate)       lines.push(`Plate: ${row.plate}`);
-      if(row.speed_mps>0) lines.push(`Speed: ${(row.speed_mps*3.6).toFixed(1)} km/h`);
-      if(addr)            lines.push(`Current location: ${addr}`);
-      if(row.timestamp)   lines.push(`Last update: ${new Date(row.timestamp).toLocaleString()}`);
+    /** Build popup HTML conditionally (only show available fields). */
+    function buildPopup(id,row,addrText){
+      const lines = [];
+      if (row.destination) lines.push(`Destination: ${row.destination}`);
+      if (row.driver)      lines.push(`Driver: ${row.driver}`);
+      if (row.plate)       lines.push(`Plate: ${row.plate}`);
+      if (row.speed_mps && row.speed_mps > 0) lines.push(`Speed: ${(row.speed_mps*3.6).toFixed(1)} km/h`);
+      if (addrText)        lines.push(`Current location: ${addrText}`);
+      if (row.timestamp)   lines.push(`Last update: ${new Date(row.timestamp).toLocaleString()}`);
 
       const link=`https://www.google.com/maps?q=${row.lat},${row.lng}`;
       const dir =`https://www.google.com/maps/dir/?api=1&destination=${row.lat},${row.lng}`;
 
       return `<b>Bus ${id}</b><br>${lines.join('<br>')}
         <div class="popup-btn-container">
-         <a target="_blank" href="${link}" class="popup-btn">📍 Open in Maps</a>
-         <a target="_blank" href="${dir}"  class="popup-btn">🚗 Get Directions</a>
+          <a href="${link}" target="_blank" class="popup-btn">📍 Open in Maps</a>
+          <a href="${dir}" target="_blank" class="popup-btn">🚗 Get Directions</a>
         </div>`;
     }
 
     function rebuildBusList(data){
-      busList=Object.keys(data).sort();
-      if(!currentFocusId||!busList.includes(currentFocusId))
-        currentFocusId=busList[0]||null;
+      busList = Object.keys(data).sort();
+      if (!currentFocusId || !busList.includes(currentFocusId)){
+        currentFocusId = busList[0] || null;
+      }
     }
 
     function highlightLegend(id){
-      document.querySelectorAll('.legend-item').forEach(x=>x.classList.remove('active'));
-      const row=document.querySelector(`.legend-item[data-id="${CSS.escape(id)}"]`);
-      if(row) row.classList.add('active');
+      document.querySelectorAll('.legend-item').forEach(el=>el.classList.remove('active'));
+      const row = document.querySelector(`.legend-item[data-busid="${CSS.escape(id)}"]`);
+      if(row){ row.classList.add('active'); row.scrollIntoView({ block:'nearest', inline:'nearest', behavior:'smooth' }); }
     }
 
-    function focusBus(id,{openPopup=false}={}){
-      if(!buses[id])return;
-      currentFocusId=id;
-
+    function focusBus(id, { openPopup=false } = {}){
+      if(!id || !buses[id]) return;
+      currentFocusId = id;
       Object.keys(buses).forEach(k=>{
         const b=buses[k];
-        if(k===id){ b.marker.setZIndexOffset(1000); b.trail.bringToFront(); }
-        else{ b.marker.setZIndexOffset(0); b.trail.bringToBack(); }
+        if (k===id){ b.marker.setZIndexOffset(1000); b.trail.bringToFront(); }
+        else { b.marker.setZIndexOffset(0); b.trail.bringToBack(); }
       });
-
-      if(followEnabled) centerTo(buses[id].marker.getLatLng());
-      if(openPopup) buses[id].marker.openPopup();
+      if (followEnabled) centerTo(buses[id].marker.getLatLng());
+      if (openPopup) buses[id].marker.openPopup();
       highlightLegend(id);
-      setStatus(`Focused: ${id}`,1500);
+      setStatus(`Focused: Bus ${id}`, 2000);
     }
 
     function ensureMarkerClick(id){
-      const b=buses[id];
-      if(b._bound)return;
-      b._bound=true;
-
-      b.marker.on('click',async()=>{
-        const ll=b.marker.getLatLng();
-        const addr=await getStreetName(ll.lat,ll.lng);
-        b.marker.bindPopup(buildPopup(id,b.latestRow,addr)).openPopup();
-        focusBus(id,{openPopup:false});
+      const b=buses[id]; if(!b || b._clickBound) return;
+      b.marker.on('click', async ()=>{
+        // refresh popup address on click
+        const lat=b.marker.getLatLng().lat, lng=b.marker.getLatLng().lng;
+        const addr = await getStreetName(lat,lng);
+        const latest = buses[id].latestRow || {};
+        b.marker.bindPopup( buildPopup(id, latest, addr) ).openPopup();
+        focusBus(id, { openPopup:false }); // recenters if followEnabled
       });
+      b._clickBound = true;
     }
 
     function buildLegendEntry(id,dest,color,isToday){
-      const el=document.createElement('div');
-      el.className='legend-item';
-      el.dataset.id=id;
-      el.style.color=isToday?'#0B4F2F':'#000';
-      el.innerHTML=`<div class="colorbox" style="background:${color}"></div>${id}${dest?` (${dest})`:''}`;
-      el.onclick=()=>{ followEnabled=true; btnFollow.textContent='🎯'; focusBus(id); };
-      return el;
+      const d=document.createElement('div');
+      d.className='legend-item';
+      d.dataset.busid = id;
+      d.style.color = isToday ? '#0B4F2F' : '#000';
+      d.innerHTML=`<div class="colorbox" style="background:${color}"></div><div>${id}${dest?` (${dest})`:''}</div>`;
+      d.onclick=()=>{ if(buses[id]){ followEnabled=true; btnFollow.textContent='🎯'; btnFollow.title='Follow ON'; focusBus(id, { openPopup:false }); } };
+      return d;
     }
 
     async function updateMap(data){
-      legendEl.innerHTML='<h4>🚌 Active Buses</h4>';
-      const ids=Object.keys(data);
+      const ids = Object.keys(data);
+      legendEl.innerHTML = '<h4>🚌 Active Buses</h4>';
       let any=false;
 
-      for(const id of ids){
-        const rows=data[id];
-        if(!rows||!rows.length)continue;
+      for (const id of ids){
+        const rows = data[id]; if(!rows || !rows.length) continue;
+        const latest = rows[0];
+        const lat = +latest.lat, lng = +latest.lng;
+        if (!isFinite(lat) || !isFinite(lng)) continue;
+        any = true;
 
-        const latest=rows[0];
-        const lat=+latest.lat, lng=+latest.lng;
-        if(!isFinite(lat)||!isFinite(lng))continue;
-        any=true;
-
-        if(!buses[id]){
-          const color=nextColor();
-          const marker=L.marker([lat,lng],{icon:makeBusIcon(id,color)}).addTo(map);
-          const trail=L.polyline([], {color,weight:5,opacity:.85}).addTo(map);
-          buses[id]={marker,trail,color,latestRow:latest};
+        // create if new
+        if (!buses[id]){
+          const color = nextMutedColor();
+          const icon  = makeBusIcon(id, color);
+          const marker= L.marker([lat,lng], { icon }).addTo(map);
+          const trail = L.polyline([], { color, weight:5, opacity:.85 }).addTo(map);
+          buses[id] = { marker, trail, color, latestRow: latest };
         } else {
-          buses[id].latestRow=latest;
+          buses[id].latestRow = latest;
         }
 
-        const b=buses[id];
-        const todayRows=todaysLimitedRows(rows);
-        b.trail.setLatLngs(todayRows.map(p=>[+p.lat,+p.lng]));
+        // trail = only today, max 200 pts
+        const b = buses[id];
+        const dayPts = todaysLimitedRows(rows);
+        b.trail.setLatLngs(dayPts.map(p=>[+p.lat,+p.lng]));
         b.marker.setLatLng([lat,lng]);
-        b.marker.bindPopup(buildPopup(id,latest,''));
+
+        // Initial popup bind with empty address (fast), will refresh on click
+        b.marker.bindPopup( buildPopup(id, latest, '') );
 
         ensureMarkerClick(id);
 
-        const isToday=new Date(latest.timestamp).toDateString()===new Date().toDateString();
-        legendEl.appendChild(buildLegendEntry(id,latest.destination,b.color,isToday));
+        const isToday = new Date(latest.timestamp).toDateString() === new Date().toDateString();
+        legendEl.appendChild( buildLegendEntry(id, latest.destination, b.color, isToday) );
       }
 
-      /* Remove inactive */
+      // remove stale
       Object.keys(buses).forEach(id=>{
         if(!ids.includes(id)){
           map.removeLayer(buses[id].marker);
@@ -352,30 +355,34 @@
 
       rebuildBusList(data);
 
+      // initial focus (center to first bus) until user interrupts
       if(!firstLoadDone && currentFocusId){
-        followEnabled=true; btnFollow.textContent='🎯';
-        focusBus(currentFocusId);
-        firstLoadDone=true;
+        followEnabled = true; btnFollow.textContent='🎯'; btnFollow.title='Follow ON';
+        focusBus(currentFocusId, { openPopup:false });
+        firstLoadDone = true;
       }
-
-      if(followEnabled&&currentFocusId&&buses[currentFocusId])
+      // keep centered if following
+      if (followEnabled && currentFocusId && buses[currentFocusId]){
         centerTo(buses[currentFocusId].marker.getLatLng());
+      }
+      if (currentFocusId){ highlightLegend(currentFocusId); }
 
-      if(currentFocusId) highlightLegend(currentFocusId);
-
-      maybeStatus(any?`Updated: ${new Date().toLocaleTimeString()}`:'No buses');
+      maybeStatus(any ? `Updated: ${new Date().toLocaleTimeString()}` : 'No buses yet');
     }
 
     async function refresh(){
       try{
-        const res=await fetch(WEB_APP_URL+'?json=1',{cache:'no-store'});
-        const js=await res.json();
-        if(js.ok) updateMap(js.buses);
-        else maybeStatus('Failed to load');
-      }catch(err){ maybeStatus('Fetch error'); }
+        const res = await fetch(WEB_APP_URL+'?json=1', { cache:'no-store' });
+        const js = await res.json();
+        if (js && js.ok) updateMap(js.buses);
+        else maybeStatus('Failed to load data');
+      }catch(e){
+        maybeStatus('Fetch failed');
+        console.warn('Fetch failed:', e);
+      }
     }
     refresh();
-    setInterval(refresh,REFRESH_SEC*1000);
+    setInterval(refresh, REFRESH_SEC*1000);
 
     /* Controls */
     const btnHome=document.getElementById('btnHome');
@@ -390,84 +397,121 @@
 
     btnHome.onclick=()=>{
       centerTo(HOME);
-      followEnabled=false; btnFollow.textContent='🚫';
-      setStatus('Home (follow OFF)',2000);
+      followEnabled=false; btnFollow.textContent='🚫'; btnFollow.title='Follow OFF';
+      setStatus('Home view (follow OFF)', 3000);
     };
 
     btnPrev.onclick=()=>{
       if(!busList.length) return;
-      const i=busList.indexOf(currentFocusId);
-      const id=(i<=0)?busList[busList.length-1]:busList[i-1];
-      followEnabled=true; btnFollow.textContent='🎯';
-      focusBus(id);
+      const idx = busList.indexOf(currentFocusId);
+      const id  = (idx <= 0) ? busList[busList.length-1] : busList[idx-1];
+      followEnabled = true; btnFollow.textContent='🎯'; btnFollow.title='Follow ON';
+      focusBus(id, { openPopup:false });
     };
 
     btnNext.onclick=()=>{
       if(!busList.length) return;
-      const i=busList.indexOf(currentFocusId);
-      const id=busList[(i+1)%busList.length];
-      followEnabled=true; btnFollow.textContent='🎯';
-      focusBus(id);
+      const idx = busList.indexOf(currentFocusId);
+      const id  = busList[(idx+1) % busList.length];
+      followEnabled = true; btnFollow.textContent='🎯'; btnFollow.title='Follow ON';
+      focusBus(id, { openPopup:false });
     };
 
     btnRecenter.onclick=()=>{
-      if(currentFocusId&&buses[currentFocusId]){
-        followEnabled=true; btnFollow.textContent='🎯';
+      if(currentFocusId && buses[currentFocusId]){
+        followEnabled = true; btnFollow.textContent='🎯'; btnFollow.title='Follow ON';
         centerTo(buses[currentFocusId].marker.getLatLng());
+        setStatus('Recentered (follow ON)', 2500);
         highlightLegend(currentFocusId);
-        setStatus('Recentered',1500);
+      } else {
+        setStatus('No focused bus', 3000);
       }
     };
 
     btnMyLoc.onclick=()=>{
-      if(!navigator.geolocation)return;
+      if(!navigator.geolocation){ setStatus('Geolocation unsupported', 3000); return; }
       navigator.geolocation.getCurrentPosition(pos=>{
         const ll=L.latLng(pos.coords.latitude,pos.coords.longitude);
         if(!myLocMarker){
-          myLocMarker=L.marker(ll,{icon:L.divIcon({html:'📍',iconSize:[20,20]})}).addTo(map);
-        } else myLocMarker.setLatLng(ll);
-
+          myLocMarker=L.marker(ll,{icon:L.divIcon({className:'myloc',html:'<div style="font-size:22px">📍</div>',iconSize:[24,24],iconAnchor:[12,22]})}).addTo(map);
+        } else {
+          myLocMarker.setLatLng(ll);
+        }
         centerTo(ll);
-        followEnabled=false; btnFollow.textContent='🚫';
-        setStatus('My location',1500);
-      });
+        followEnabled=false; btnFollow.textContent='🚫'; btnFollow.title='Follow OFF';
+        setStatus('My location (follow OFF)', 3000);
+      }, err=>setStatus('GPS error: '+err.message, 3000), { enableHighAccuracy:true });
     };
 
-    btnMapType.onclick=()=>{ switchMapType(); setStatus('Map switched',1500); };
+    btnMapType.onclick=()=>{ switchMapType(); setStatus('Map type switched', 2000); };
 
     btnLegend.onclick=()=>{
       const c=legendEl.classList.toggle('collapsed');
-      btnLegend.textContent=c?'👁️':'🙈';
-      setStatus(c?'Legend hidden':'Legend shown',1500);
+      legendEl.setAttribute('aria-expanded', String(!c));
+      btnLegend.textContent = c ? '👁️' : '🙈';
+      btnLegend.title = c ? 'Show Active Buses' : 'Hide Active Buses';
+      setStatus(c ? 'Active buses hidden' : 'Active buses shown', 2000);
     };
 
     btnFollow.onclick=()=>{
-      followEnabled=!followEnabled;
-      btnFollow.textContent=followEnabled?'🎯':'🚫';
-      if(followEnabled && currentFocusId && buses[currentFocusId])
+      followEnabled = !followEnabled;
+      btnFollow.textContent = followEnabled ? '🎯' : '🚫';
+      btnFollow.title = followEnabled ? 'Follow ON' : 'Follow OFF';
+      setStatus(followEnabled ? 'Follow ON' : 'Follow OFF', 2000);
+      if(followEnabled && currentFocusId && buses[currentFocusId]){
         centerTo(buses[currentFocusId].marker.getLatLng());
+        highlightLegend(currentFocusId);
+      }
     };
 
-    /* Wake Lock */
-    let wakeLock=null;
-    async function requestWake(){
+    /* Wake Lock (Screen) */
+    let wakeLock = null;
+    async function requestWakeLock(){
       try{
-        if('wakeLock'in navigator){
-          wakeLock=await navigator.wakeLock.request('screen');
-          btnWake.textContent='🔆';
-          wakeLock.addEventListener('release',()=>{ wakeLock=null; btnWake.textContent='💤'; });
+        if ('wakeLock' in navigator && !wakeLock){
+          wakeLock = await navigator.wakeLock.request('screen');
+          btnWake.textContent = '🔆';
+          btnWake.title = 'Screen awake (tap to release)';
+          setStatus('Wake Lock ON', 1500);
+          wakeLock.addEventListener('release', () => {
+            wakeLock = null;
+            btnWake.textContent = '💤';
+            btnWake.title = 'Keep screen awake (Wake Lock)';
+            setStatus('Wake Lock released', 1500);
+          });
         }
-      }catch{}
+      }catch(err){
+        setStatus('Wake Lock failed: ' + (err && err.message ? err.message : err), 2500);
+        btnWake.textContent = '💤';
+        btnWake.title = 'Keep screen awake (Wake Lock)';
+      }
     }
-    async function releaseWake(){ if(wakeLock) await wakeLock.release(); wakeLock=null; btnWake.textContent='💤'; }
-
-    btnWake.onclick=()=>{ if(wakeLock) releaseWake(); else requestWake(); };
-
-    document.addEventListener('visibilitychange',()=>{
-      if(document.visibilityState==='visible' && wakeLock)
-        requestWake();
+    async function releaseWakeLock(){
+      try{ if (wakeLock){ await wakeLock.release(); } }catch{}
+      wakeLock = null;
+      btnWake.textContent = '💤';
+      btnWake.title = 'Keep screen awake (Wake Lock)';
+      setStatus('Wake Lock OFF', 1200);
+    }
+    btnWake.onclick = async ()=>{
+      if (!('wakeLock' in navigator)){
+        setStatus('Wake Lock not supported on this browser', 2500);
+        btnWake.disabled = true;
+        return;
+      }
+      if (wakeLock) await releaseWakeLock(); else await requestWakeLock();
+    };
+    document.addEventListener('visibilitychange', async ()=>{
+      if (document.visibilityState === 'visible' && wakeLock){
+        // force reacquire
+        wakeLock = null;
+        await requestWakeLock();
+      }
     });
-
+    if (!('wakeLock' in navigator)){
+      btnWake.disabled = true;
+      btnWake.title = 'Wake Lock not supported';
+    }
   </script>
 </body>
 </html>
