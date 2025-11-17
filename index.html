@@ -179,7 +179,7 @@
       animation:logoPulse 1.6s ease-out infinite;
     }
 
-    /* Bottom-left panel: status above legend */
+    /* Bottom-left panel: status above legend (default position) */
     .bottom-left-panel {
       position:absolute;
       left:10px;
@@ -189,6 +189,7 @@
       flex-direction:column;
       gap:4px;
       max-width:calc(100vw - 20px);
+      transition:all .2s ease;
     }
 
     /* When legend is hidden: move status to bottom center above buttons */
@@ -208,13 +209,40 @@
       box-shadow:0 2px 6px rgba(0,0,0,.25);
       max-height:60vh;
       overflow-y:auto;
+      transition:transform .25s ease, opacity .22s ease;
     }
     .legend h4 { margin:0 0 4px; font-size:.95rem; }
+
     .legend-caption {
       font-size:.75rem;
       color:#444;
+      margin-bottom:2px;
+      display:flex;
+      align-items:center;
+      gap:4px;
+      flex-wrap:wrap;
+    }
+    .legend-dot {
+      width:10px;
+      height:10px;
+      border-radius:50%;
+      display:inline-block;
+      flex-shrink:0;
+    }
+    .legend-dot-today { background:#006400; }
+    .legend-dot-old { background:#000; }
+    .legend-sep {
+      margin:0 4px;
+      opacity:.7;
+    }
+
+    .legend-hide-note {
+      font-size:.75rem;
+      color:#444;
+      font-style:italic;
       margin-bottom:4px;
     }
+
     .legend-item {
       display:flex;
       align-items:center;
@@ -242,7 +270,6 @@
       opacity:0;
       pointer-events:none;
       transform-origin:top left;
-      transition:transform .25s ease, opacity .22s ease;
     }
 
     /* Controls */
@@ -311,8 +338,13 @@
   <div class="bottom-left-panel" id="bottomLeftPanel">
     <div class="status" id="status">Loading…</div>
     <div class="legend" id="legend">
-      <h4>🚌 Active Shuttles (🙈 = hide)</h4>
-      <div class="legend-caption">● dark green = updated today · black = older</div>
+      <h4>🚌 Active Shuttles</h4>
+      <div class="legend-caption">
+        <span class="legend-dot legend-dot-today"></span><span>updated today</span>
+        <span class="legend-sep">·</span>
+        <span class="legend-dot legend-dot-old"></span><span>older</span>
+      </div>
+      <div class="legend-hide-note"><em>(Tap 🙈 to hide)</em></div>
     </div>
   </div>
 
@@ -334,7 +366,7 @@
     const WEB_APP_URL = "https://script.google.com/macros/s/AKfycby6mh0UYXsQyms8ZHWGl5fgDM2yUCBH7TfQ53zTS810KGLS8rLFFcijVTpGpoo2Ab5uAg/exec";
     const REFRESH_SEC = 10;
     const TRAIL_LIMIT_PER_DAY = 200;
-    const HOME = L.latLng(3.543784470063409, 103.42902640748252);
+    const HOME = L.latLng(3.8235798, 103.2799927);  // updated home coords
 
     /* DOM */
     const legendEl = document.getElementById('legend');
@@ -356,7 +388,7 @@
     const btnWake = document.getElementById('btnWake');
 
     /* Map + layers */
-    const map = L.map('map', { zoomControl:true, attributionControl:false }).setView([3.54,103.43],13);
+    const map = L.map('map', { zoomControl:true, attributionControl:false }).setView(HOME,13);
     const layers = {
       osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
       esriImagery: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'),
@@ -371,6 +403,16 @@
     let baseOrder = ['osm','esriImagery','esriStreets'], baseIdx = 0;
     let baseLayer = layers[baseOrder[baseIdx]].addTo(map);
     if (!map.hasLayer(labels)) labels.addTo(map);
+
+    /* Home marker */
+    const homeMarker = L.marker(HOME, {
+      icon: L.divIcon({
+        className:'home-marker',
+        html:'<div style="font-size:22px">🏫</div>',
+        iconSize:[24,24],
+        iconAnchor:[12,22]
+      })
+    }).addTo(map);
 
     function switchMapType(){
       map.removeLayer(baseLayer);
@@ -623,8 +665,13 @@
       const onlyToday = todayOnlyEl.checked;
 
       legendEl.innerHTML = `
-        <h4>🚌 Active Shuttles (🙈 = hide)</h4>
-        <div class="legend-caption">● dark green = updated today · black = older</div>
+        <h4>🚌 Active Shuttles</h4>
+        <div class="legend-caption">
+          <span class="legend-dot legend-dot-today"></span><span>updated today</span>
+          <span class="legend-sep">·</span>
+          <span class="legend-dot legend-dot-old"></span><span>older</span>
+        </div>
+        <div class="legend-hide-note"><em>(Tap 🙈 to hide)</em></div>
       `;
 
       const visibleSet = new Set();
