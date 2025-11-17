@@ -43,7 +43,12 @@
       opacity: 1; transition: transform .25s ease, opacity .22s ease;
     }
     .legend.collapsed { transform: scaleY(0); opacity:0; pointer-events:none; }
-    .legend h4 { margin:0 0 4px; font-size:.95rem; }
+    .legend h4 { margin:0 0 2px; font-size:.95rem; }
+    .legend-caption {
+      font-size:.75rem;
+      color:#555;
+      margin-bottom:4px;
+    }
     .legend-item {
       display:flex; align-items:center; gap:6px; margin:3px 0;
       cursor:pointer; padding:4px 6px; border-radius:8px;
@@ -102,6 +107,17 @@
       padding:2px 4px;
       background:#fff;
     }
+    .route-filter .today-only-label {
+      font-weight:500;
+      display:flex;
+      align-items:center;
+      gap:2px;
+      margin-left:6px;
+      font-size:.8rem;
+    }
+    .route-filter .today-only-label input {
+      margin:0;
+    }
 
     /* Logo overlay (no box) */
     .logo-overlay {
@@ -154,16 +170,23 @@
   <!-- Centered overlay title -->
   <div class="title-overlay">WIDAD UC SHUTTLE TRACKER</div>
 
-  <!-- Route filter -->
+  <!-- Route filter + Today-only toggle -->
   <div class="route-filter">
     <label for="routeFilter">Route:</label>
     <select id="routeFilter">
       <option value="ALL">All Routes</option>
     </select>
+    <label class="today-only-label">
+      <input type="checkbox" id="todayOnly" />
+      Today only
+    </label>
   </div>
 
   <!-- Legend -->
-  <div class="legend" id="legend" aria-expanded="true"><h4>🚌 Active Shuttles</h4></div>
+  <div class="legend" id="legend" aria-expanded="true">
+    <h4>🚌 Active Shuttles</h4>
+    <div class="legend-caption">● dark green = updated today · black = older</div>
+  </div>
   <div class="status" id="status">Loading…</div>
 
   <!-- Logo (Widad) -->
@@ -239,12 +262,16 @@
     const buses = {};
     const legendEl = document.getElementById('legend');
     const routeFilterSelect = document.getElementById('routeFilter');
+    const todayOnlyCheckbox = document.getElementById('todayOnly');
+
     let routeFilter = 'ALL';
+    let todayOnly = false;
     let busList = [], currentFocusId = null, myLocMarker = null;
     let followEnabled = true, firstLoadDone = false;
 
     function getFilteredBusList(){
-      return busList.filter(id => routeFilter === 'ALL' || routeFilter === id);
+      const src = busList.filter(id => !todayOnly || (buses[id] && buses[id].isToday));
+      return src.filter(id => routeFilter === 'ALL' || routeFilter === id);
     }
 
     /* Reverse geocode cache */
@@ -356,13 +383,15 @@
     function syncRouteFilterOptions(){
       const currentVal = routeFilterSelect.value || 'ALL';
       routeFilterSelect.innerHTML = '<option value="ALL">All Routes</option>';
-      busList.forEach(id=>{
+      const src = busList.filter(id => !todayOnly || (buses[id] && buses[id].isToday));
+      src.forEach(id=>{
         const opt = document.createElement('option');
         opt.value = id;
         opt.textContent = id;
         routeFilterSelect.appendChild(opt);
       });
-      if (currentVal !== 'ALL' && busList.includes(currentVal)){
+
+      if (currentVal !== 'ALL' && src.includes(currentVal)){
         routeFilterSelect.value = currentVal;
         routeFilter = currentVal;
       } else {
@@ -397,7 +426,10 @@
       Object.keys(buses).forEach(id=>{
         const b = buses[id];
         if (!b) return;
-        const passes = (routeFilter === 'ALL' || routeFilter === id);
+        const passesRoute = (routeFilter === 'ALL' || routeFilter === id);
+        const passesToday = (!todayOnly || b.isToday);
+        const passes = passesRoute && passesToday;
+
         if (passes){
           if (!map.hasLayer(b.marker)) b.marker.addTo(map);
           if (!map.hasLayer(b.trail))  b.trail.addTo(map);
@@ -464,11 +496,13 @@
 
     async function updateMap(data){
       const ids = Object.keys(data);
-      legendEl.innerHTML = '<h4>🚌 Active Shuttles</h4>';
+      legendEl.innerHTML = `
+        <h4>🚌 Active Shuttles</h4>
+        <div class="legend-caption">● dark green = updated today · black = older</div>
+      `;
       let any = false;
 
       rebuildBusList(data);
-      syncRouteFilterOptions();
 
       const todayStr = new Date().toDateString();
 
@@ -481,16 +515,16 @@
         any = true;
 
         const isToday = new Date(latest.timestamp).toDateString() === todayStr;
-        const passesFilter = (routeFilter === 'ALL' || routeFilter === id);
 
         if (!buses[id]){
           const color  = nextMutedColor();
           const icon   = makeBusIcon(id, color);
           const marker = L.marker([lat,lng], { icon });
           const trail  = L.polyline([], { color, weight:5, opacity:.85 });
-          buses[id] = { marker, trail, color, latestRow: latest, allPts: [] };
+          buses[id] = { marker, trail, color, latestRow: latest, allPts: [], isToday };
         } else {
           buses[id].latestRow = latest;
+          buses[id].isToday = isToday;
         }
 
         const b = buses[id];
@@ -498,22 +532,8 @@
         b.allPts = dayPts;
         b.marker.setLatLng([lat,lng]);
 
-        if (passesFilter){
-          if (!map.hasLayer(b.marker)) b.marker.addTo(map);
-          if (!map.hasLayer(b.trail))  b.trail.addTo(map);
-        } else {
-          if (map.hasLayer(b.marker)) map.removeLayer(b.marker);
-          if (map.hasLayer(b.trail))  map.removeLayer(b.trail);
-        }
-
         b.marker.bindPopup( buildPopup(id, latest, '') );
         ensureMarkerClick(id);
-
-        if (passesFilter){
-          legendEl.appendChild(
-            buildLegendEntry(id, latest.destination, b.color, isToday)
-          );
-        }
       }
 
       // remove stale
@@ -523,6 +543,18 @@
           if (map.hasLayer(buses[id].trail))  map.removeLayer(buses[id].trail);
           delete buses[id];
         }
+      });
+
+      syncRouteFilterOptions();
+
+      // Rebuild legend with filters
+      const idsForLegend = getFilteredBusList();
+      idsForLegend.forEach(id=>{
+        const b = buses[id];
+        if (!b) return;
+        legendEl.appendChild(
+          buildLegendEntry(id, b.latestRow.destination, b.color, b.isToday)
+        );
       });
 
       applyRouteFilterToMap();
@@ -679,6 +711,24 @@
       setStatus(routeFilter === 'ALL'
         ? 'Showing all routes'
         : `Filter: Route ${routeFilter}`, 2000);
+    });
+
+    todayOnlyCheckbox.addEventListener('change', ()=>{
+      todayOnly = todayOnlyCheckbox.checked;
+      syncRouteFilterOptions();
+      const list = getFilteredBusList();
+      applyRouteFilterToMap();
+
+      if (!list.length){
+        currentFocusId = null;
+        setStatus(todayOnly ? 'No routes updated today' : 'No routes in filter', 2000);
+        return;
+      }
+      if (!list.includes(currentFocusId)){
+        currentFocusId = list[0];
+      }
+      focusBus(currentFocusId, { openPopup:false });
+      setStatus(todayOnly ? 'Showing only today\'s routes' : 'Showing all days', 2000);
     });
 
     /* Wake Lock (Screen) */
