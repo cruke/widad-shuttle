@@ -143,7 +143,6 @@
       cursor:pointer;
       border-radius:50%;
       flex-shrink:0;
-      /* wobble will apply on this element */
     }
 
     /* Breathing (kembang-kecut) + slight tilt + glow when idle */
@@ -167,7 +166,7 @@
         box-shadow:0 0 6px rgba(255,255,255,0.9);
       }
       50% {
-        transform:scale(1.09) rotate(3deg);   /* kembang + tilt */
+        transform:scale(1.09) rotate(3deg);
         box-shadow:0 0 16px rgba(255,255,255,0.7);
       }
       100% {
@@ -259,9 +258,9 @@
     .legend-item {
       display:flex;
       align-items:center;
-      gap:6px;
-      margin:3px 0;
-      padding:4px 6px;
+      gap:4px;          /* tighter gap between dot & text */
+      margin:1px 0;     /* reduced vertical spacing between rows */
+      padding:3px 6px;  /* slightly smaller internal padding */
       cursor:pointer;
       border-radius:8px;
       transition:background .15s ease, box-shadow .15s ease, transform .1s ease;
@@ -982,9 +981,7 @@
 
     /* Logo click: wobble + toggle filters panel */
     logoBtn.addEventListener('click', ()=>{
-      // trigger wobble animation
       logoBtn.classList.add('wobble');
-
       const isOpen = topbar.classList.toggle('open');
       setStatus(isOpen ? 'Filters shown' : 'Filters hidden', 1000);
     });
