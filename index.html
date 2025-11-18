@@ -45,10 +45,10 @@
       white-space:nowrap;
     }
 
-    /* Status (green update label) – now at 110px from top */
+    /* Status (green update label) – at 110px from top */
     .status {
       position:absolute;
-      top:110px;            /* you said 110px works for you */
+      top:110px;
       left:50%;
       transform:translateX(-50%);
       z-index:755;
@@ -143,8 +143,10 @@
       cursor:pointer;
       border-radius:50%;
       flex-shrink:0;
+      /* wobble will apply on this element */
     }
 
+    /* Breathing (kembang-kecut) + slight tilt + glow when idle */
     .logo-btn img {
       width:40px;
       height:40px;
@@ -153,42 +155,49 @@
       background:#fff;
       object-fit:contain;
       filter:drop-shadow(0 2px 5px rgba(0,0,0,.45));
-      transition:
-        border-color .25s ease,
-        box-shadow .25s ease,
-        transform .25s ease;
-      /* Always glowing */
-      animation: logoGlow 2s ease-out infinite;
+      transition:border-color .25s ease, box-shadow .25s ease;
+
+      /* Idle: breathing + glow + tiny tilt */
+      animation: logoBreath 2.4s ease-in-out infinite;
     }
 
-    /* Soft glow animation (always on) */
-    @keyframes logoGlow {
+    @keyframes logoBreath {
       0% {
-        box-shadow:0 0 0 0 rgba(255,255,255,0.9);
+        transform:scale(1) rotate(0deg);
+        box-shadow:0 0 6px rgba(255,255,255,0.9);
       }
-      60% {
-        box-shadow:0 0 14px 8px rgba(255,255,255,0);
+      50% {
+        transform:scale(1.09) rotate(3deg);   /* kembang + tilt */
+        box-shadow:0 0 16px rgba(255,255,255,0.7);
       }
       100% {
-        box-shadow:0 0 0 0 rgba(255,255,255,0.9);
+        transform:scale(1) rotate(0deg);
+        box-shadow:0 0 6px rgba(255,255,255,0.9);
       }
     }
 
-    /* Spin animation when filters are open */
-    @keyframes logoSpin {
-      from {
-        transform:rotate(0deg);
-        box-shadow:0 0 10px 4px rgba(255,255,255,0.9);
-      }
-      to {
-        transform:rotate(360deg);
-        box-shadow:0 0 10px 4px rgba(255,255,255,0.4);
-      }
-    }
-
+    /* Spin animation when filter panel is open (override breathing) */
     .topbar.open .logo-btn img {
-      /* override glow with spinning when open */
-      animation: logoSpin 1.2s linear infinite;
+      animation: logoSpin 1.2s linear infinite !important;
+    }
+
+    @keyframes logoSpin {
+      from { transform:rotate(0deg) scale(1); }
+      to   { transform:rotate(360deg) scale(1); }
+    }
+
+    /* Elastic wobble on the button when pressed */
+    .logo-btn.wobble {
+      animation: logoWobble 0.45s ease-out;
+    }
+
+    @keyframes logoWobble {
+      0%   { transform:scale(1) rotate(0deg); }
+      20%  { transform:scale(0.95) rotate(-6deg); }
+      40%  { transform:scale(1.05) rotate(4deg); }
+      60%  { transform:scale(0.98) rotate(-3deg); }
+      80%  { transform:scale(1.02) rotate(2deg); }
+      100% { transform:scale(1) rotate(0deg); }
     }
 
     /* Bottom-left panel: legend only, moved lower */
@@ -971,10 +980,20 @@
       btnWake.title = 'Wake Lock not supported';
     }
 
-    /* Logo click: toggle filters panel */
+    /* Logo click: wobble + toggle filters panel */
     logoBtn.addEventListener('click', ()=>{
+      // trigger wobble animation
+      logoBtn.classList.add('wobble');
+
       const isOpen = topbar.classList.toggle('open');
       setStatus(isOpen ? 'Filters shown' : 'Filters hidden', 1000);
+    });
+
+    // Remove wobble class when animation finishes so it can retrigger
+    logoBtn.addEventListener('animationend', (e)=>{
+      if (e.animationName === 'logoWobble') {
+        logoBtn.classList.remove('wobble');
+      }
     });
   </script>
 </body>
