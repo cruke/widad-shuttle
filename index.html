@@ -45,10 +45,10 @@
       white-space:nowrap;
     }
 
-    /* Status (green update label) between title and logo */
+    /* Status (green update label) – now at 110px from top */
     .status {
       position:absolute;
-      top:110px;              /* between title (6px) and logo bar (44px) */
+      top:110px;            /* you said 110px works for you */
       left:50%;
       transform:translateX(-50%);
       z-index:755;
@@ -157,25 +157,38 @@
         border-color .25s ease,
         box-shadow .25s ease,
         transform .25s ease;
+      /* Always glowing */
+      animation: logoGlow 2s ease-out infinite;
     }
 
-    @keyframes logoPulse {
+    /* Soft glow animation (always on) */
+    @keyframes logoGlow {
       0% {
-        box-shadow:0 0 0 0 rgba(255,255,255,0.8);
-        transform:scale(1.03);
+        box-shadow:0 0 0 0 rgba(255,255,255,0.9);
       }
-      50% {
-        box-shadow:0 0 0 8px rgba(255,255,255,0);
-        transform:scale(1.08);
+      60% {
+        box-shadow:0 0 14px 8px rgba(255,255,255,0);
       }
       100% {
-        box-shadow:0 0 0 0 rgba(255,255,255,0.8);
-        transform:scale(1.03);
+        box-shadow:0 0 0 0 rgba(255,255,255,0.9);
+      }
+    }
+
+    /* Spin animation when filters are open */
+    @keyframes logoSpin {
+      from {
+        transform:rotate(0deg);
+        box-shadow:0 0 10px 4px rgba(255,255,255,0.9);
+      }
+      to {
+        transform:rotate(360deg);
+        box-shadow:0 0 10px 4px rgba(255,255,255,0.4);
       }
     }
 
     .topbar.open .logo-btn img {
-      animation:logoPulse 1.6s ease-out infinite;
+      /* override glow with spinning when open */
+      animation: logoSpin 1.2s linear infinite;
     }
 
     /* Bottom-left panel: legend only, moved lower */
@@ -301,7 +314,7 @@
 <body>
   <div class="title-overlay">WIDAD UC SHUTTLE TRACKER</div>
 
-  <!-- Status label between title & logo -->
+  <!-- Status label -->
   <div class="status" id="status">Loading…</div>
 
   <!-- Top bar: logo toggles expansion of filters -->
