@@ -30,19 +30,68 @@
       left:auto;
     }
 
-    /* Title overlay */
+    /* Title overlay – WHITE text + thin black outline + softer breathing gold glow */
     .title-overlay {
       position:absolute;
       top:6px;
       left:50%;
       transform:translateX(-50%);
       z-index:750;
-      font-size:1.25rem;
-      font-weight:700;
-      color:#fff;
-      text-shadow:0 0 4px rgba(0,0,0,.9);
+
+      font-size:1.32rem;
+      font-weight:800;
+
+      /* WHITE TEXT */
+      color:#ffffff;
+
+      /* BLACK OUTLINE + SOFT GOLD GLOW */
+      text-shadow:
+        /* thin black outline */
+        -1px 0   0 rgba(0,0,0,0.95),
+         1px 0   0 rgba(0,0,0,0.95),
+         0  -1px 0 rgba(0,0,0,0.95),
+         0   1px 0 rgba(0,0,0,0.95),
+        /* soft gold glow */
+        0 0 4px  rgba(255,215,0,0.50),
+        0 0 8px  rgba(255,215,0,0.40),
+        0 0 14px rgba(255,215,0,0.30);
+
+      animation: goldBreath 3s ease-in-out infinite;
       pointer-events:none;
       white-space:nowrap;
+    }
+
+    @keyframes goldBreath {
+      0% {
+        text-shadow:
+          -1px 0   0 rgba(0,0,0,0.95),
+           1px 0   0 rgba(0,0,0,0.95),
+           0  -1px 0 rgba(0,0,0,0.95),
+           0   1px 0 rgba(0,0,0,0.95),
+          0 0 4px  rgba(255,215,0,0.50),
+          0 0 8px  rgba(255,215,0,0.40),
+          0 0 14px rgba(255,215,0,0.30);
+      }
+      50% {
+        text-shadow:
+          -1px 0   0 rgba(0,0,0,0.95),
+           1px 0   0 rgba(0,0,0,0.95),
+           0  -1px 0 rgba(0,0,0,0.95),
+           0   1px 0 rgba(0,0,0,0.95),
+          0 0 6px  rgba(255,223,80,0.65),
+          0 0 12px rgba(255,223,80,0.55),
+          0 0 18px rgba(255,223,80,0.45);
+      }
+      100% {
+        text-shadow:
+          -1px 0   0 rgba(0,0,0,0.95),
+           1px 0   0 rgba(0,0,0,0.95),
+           0  -1px 0 rgba(0,0,0,0.95),
+           0   1px 0 rgba(0,0,0,0.95),
+          0 0 4px  rgba(255,215,0,0.50),
+          0 0 8px  rgba(255,215,0,0.40),
+          0 0 14px rgba(255,215,0,0.30);
+      }
     }
 
     /* Status (green update label) – at 110px from top */
@@ -155,8 +204,6 @@
       object-fit:contain;
       filter:drop-shadow(0 2px 5px rgba(0,0,0,.45));
       transition:border-color .25s ease, box-shadow .25s ease;
-
-      /* Idle: breathing + glow + tiny tilt */
       animation: logoBreath 2.4s ease-in-out infinite;
     }
 
@@ -258,9 +305,9 @@
     .legend-item {
       display:flex;
       align-items:center;
-      gap:4px;          /* tighter gap between dot & text */
-      margin:1px 0;     /* reduced vertical spacing between rows */
-      padding:3px 6px;  /* slightly smaller internal padding */
+      gap:4px;
+      margin:1px 0;
+      padding:3px 6px;
       cursor:pointer;
       border-radius:8px;
       transition:background .15s ease, box-shadow .15s ease, transform .1s ease;
@@ -740,6 +787,7 @@
 
         visibleSet.add(id);
 
+        // create or reuse bus marker/trail
         if (!buses[id]){
           const color = nextMutedColor();
           const icon  = makeBusIcon(id, color);
@@ -766,6 +814,7 @@
         legendEl.appendChild( buildLegendEntry(id, latest, b.color, isTodayFlag) );
       }
 
+      // remove stale from map (but keep in memory)
       Object.keys(buses).forEach(id=>{
         if (!visibleSet.has(id)){
           if (map.hasLayer(buses[id].marker)) map.removeLayer(buses[id].marker);
@@ -775,6 +824,7 @@
 
       rebuildBusList(visibleSet);
 
+      // initial focus
       if (!firstLoadDone && currentFocusId){
         followEnabled = true;
         btnFollow.textContent = '🎯';
@@ -787,6 +837,7 @@
         currentFocusId = busList[0];
       }
 
+      // apply trail visibility (only focused)
       Object.keys(buses).forEach(id=>{
         const b = buses[id];
         if (!b) return;
@@ -986,7 +1037,6 @@
       setStatus(isOpen ? 'Filters shown' : 'Filters hidden', 1000);
     });
 
-    // Remove wobble class when animation finishes so it can retrigger
     logoBtn.addEventListener('animationend', (e)=>{
       if (e.animationName === 'logoWobble') {
         logoBtn.classList.remove('wobble');
