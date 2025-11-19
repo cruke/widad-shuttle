@@ -90,7 +90,7 @@
       }
     }
 
-    /* Green status label */
+    /* Green status label (between title & logo) */
     .status {
       position:absolute;
       top:110px;
@@ -245,7 +245,6 @@
       max-width:calc(100vw - 20px);
     }
 
-    /* Legend boxes */
     .legend {
       background:rgba(255,255,255,.95);
       padding:6px 10px;
@@ -254,7 +253,9 @@
       box-shadow:0 2px 6px rgba(0,0,0,.25);
       max-height:60vh;
       overflow-y:auto;
+      transition:transform .25s ease, opacity .22s ease;
     }
+    .legend h4 { margin:0 0 4px; font-size:.95rem; }
 
     .legend-caption {
       font-size:.75rem;
@@ -264,6 +265,26 @@
       align-items:center;
       gap:4px;
       flex-wrap:wrap;
+    }
+    .legend-dot {
+      width:10px;
+      height:10px;
+      border-radius:50%;
+      display:inline-block;
+      flex-shrink:0;
+    }
+    .legend-dot-today { background:#006400; }
+    .legend-dot-old { background:#000; }
+    .legend-sep {
+      margin:0 4px;
+      opacity:.7;
+    }
+
+    .legend-hide-note {
+      font-size:.75rem;
+      color:#444;
+      font-style:italic;
+      margin-bottom:4px;
     }
 
     .legend-item {
@@ -287,6 +308,13 @@
       width:16px;
       height:10px;
       border-radius:3px;
+    }
+
+    .legend.collapsed {
+      transform:scaleY(0);
+      opacity:0;
+      pointer-events:none;
+      transform-origin:top left;
     }
 
     /* ===========================
@@ -340,7 +368,10 @@
     .controls button:nth-child(8) { animation-delay:1.4s; }
     .controls button:nth-child(9) { animation-delay:1.6s; }
 
-    /* Attribution hidden */
+    .controls button:active { transform:scale(.97); }
+    .controls button[disabled] { opacity:.5; cursor:not-allowed; }
+
+    /* Hide attribution */
     .leaflet-control-attribution { display:none!important; }
   </style>
 </head>
@@ -358,8 +389,8 @@
       </div>
     </div>
 
-    <button class="logo-btn" id="logoBtn">
-      <img src="https://upload.wikimedia.org/wikipedia/commons/2/25/Widad_University_College_Logo.jpg">
+    <button class="logo-btn" id="logoBtn" title="Tap to show/hide filters">
+      <img src="https://upload.wikimedia.org/wikipedia/commons/2/25/Widad_University_College_Logo.jpg" alt="Widad UC Logo">
     </button>
   </div>
 
@@ -378,15 +409,15 @@
   </div>
 
   <div class="controls">
-    <button id="btnHome">🏠</button>
-    <button id="btnPrev">◀️</button>
-    <button id="btnRecenter">🔄</button>
-    <button id="btnNext">▶️</button>
-    <button id="btnMyLoc">📍</button>
-    <button id="btnMapType">🗺️</button>
-    <button id="btnLegend">🙈</button>
-    <button id="btnFollow">🎯</button>
-    <button id="btnWake">💤</button>
+    <button id="btnHome" title="Home">🏠</button>
+    <button id="btnPrev" title="Previous route">◀️</button>
+    <button id="btnRecenter" title="Recenter">🔄</button>
+    <button id="btnNext" title="Next route">▶️</button>
+    <button id="btnMyLoc" title="My location">📍</button>
+    <button id="btnMapType" title="Switch map">🗺️</button>
+    <button id="btnLegend" title="Hide Active Shuttles">🙈</button>
+    <button id="btnFollow" title="Follow shuttle">🎯</button>
+    <button id="btnWake" title="Keep screen on">💤</button>
   </div>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -447,7 +478,7 @@
     );
 
     let baseOrder = ["osm", "esriImagery", "esriStreets"],
-      baseIdx = 0;
+        baseIdx = 0;
     let baseLayer = layers[baseOrder[baseIdx]].addTo(map);
     if (!map.hasLayer(labels)) labels.addTo(map);
 
@@ -468,6 +499,7 @@
       `;
     }
 
+    /* HOME marker – default layer (below focused bus) */
     const homeMarker = L.marker(HOME, {
       icon: L.divIcon({
         html: makeCircleChip("🏫", "#2E7D32"),
@@ -475,6 +507,8 @@
         iconAnchor: [22, 22]
       })
     }).addTo(map);
+    homeMarker.setZIndexOffset(0);
+    homeMarker.setOpacity(1);
 
     let statusHoldUntil = 0;
     function setStatus(msg, holdMs = 0) {
@@ -532,7 +566,7 @@
       const todayPts = rows.filter(
         (r) => new Date(r.timestamp).toDateString() === today
       );
-      return todayPts.slice(0, 200).reverse();
+      return todayPts.slice(0, TRAIL_LIMIT_PER_DAY).reverse();
     }
 
     const addrCache = new Map();
@@ -611,6 +645,16 @@
       if (found) found.classList.add("active");
     }
 
+    function applyHomeMyOpacityForFocus() {
+      if (currentFocus && buses[currentFocus]) {
+        homeMarker.setOpacity(0.6);
+        if (myLocMarker) myLocMarker.setOpacity(0.6);
+      } else {
+        homeMarker.setOpacity(1);
+        if (myLocMarker) myLocMarker.setOpacity(1);
+      }
+    }
+
     function focusBus(id, openPopup = false) {
       if (!id || !buses[id]) return;
       currentFocus = id;
@@ -618,7 +662,7 @@
       Object.keys(buses).forEach((k) => {
         const bus = buses[k];
         if (k === id) {
-          bus.marker.setZIndexOffset(1000);
+          bus.marker.setZIndexOffset(2000);   // focused bus on top
           bus.trail.bringToFront();
           bus.trail.setStyle({ opacity: 0.85, weight: 5 });
         } else {
@@ -626,6 +670,12 @@
           bus.trail.setStyle({ opacity: 0, weight: 0 });
         }
       });
+
+      // When a bus is focused → home & my location fade slightly and stay below
+      homeMarker.setZIndexOffset(0);
+      if (myLocMarker) myLocMarker.setZIndexOffset(0);
+      homeMarker.setOpacity(0.6);
+      if (myLocMarker) myLocMarker.setOpacity(0.6);
 
       if (followEnabled) centerTo(buses[id].marker.getLatLng());
       if (openPopup) buses[id].marker.openPopup();
@@ -643,7 +693,7 @@
         const addr = await getAddress(ll.lat, ll.lng);
         const r = b.latestRow || {};
         b.marker.bindPopup(popupHTML(id, r, addr)).openPopup();
-        focusBus(id);
+        focusBus(id, false);
       });
 
       b._clickBound = true;
@@ -668,7 +718,7 @@
       d.onclick = () => {
         followEnabled = true;
         btnFollow.textContent = "🎯";
-        focusBus(id);
+        focusBus(id, false);
       };
 
       return d;
@@ -712,7 +762,7 @@
 
         const latest = rows[0];
         const lat = +latest.lat,
-          lng = +latest.lng;
+              lng = +latest.lng;
         if (!isFinite(lat) || !isFinite(lng)) continue;
 
         const fresh = isToday(latest.timestamp);
@@ -739,9 +789,7 @@
           const color = nextColor();
           const icon = makeBusIcon(id, color);
           const marker = L.marker([lat, lng], { icon }).addTo(map);
-          const trail = L.polyline([], { color, weight: 5, opacity: 0.85 }).addTo(
-            map
-          );
+          const trail = L.polyline([], { color, weight: 5, opacity: 0.85 }).addTo(map);
           buses[id] = { marker, trail, color, latestRow: latest };
         } else {
           const b = buses[id];
@@ -755,10 +803,11 @@
         b.trail.setLatLngs(pts.map((p) => [+p.lat, +p.lng]));
         b.marker.setLatLng([lat, lng]);
 
+        // Default non-focused styling
+        b.marker.setZIndexOffset(0);
         b.trail.setStyle({ opacity: 0, weight: 0 });
 
         b.marker.bindPopup(popupHTML(id, latest, ""));
-
         ensureMarkerClick(id);
 
         legendEl.appendChild(makeLegendItem(id, latest, b.color, fresh));
@@ -776,7 +825,7 @@
       if (!firstLoadDone && currentFocus) {
         followEnabled = true;
         btnFollow.textContent = "🎯";
-        focusBus(currentFocus);
+        focusBus(currentFocus, false);
         firstLoadDone = true;
       }
 
@@ -791,8 +840,10 @@
         }
         if (id === currentFocus) {
           b.trail.setStyle({ opacity: 0.85, weight: 5 });
+          b.marker.setZIndexOffset(2000);
         } else {
           b.trail.setStyle({ opacity: 0, weight: 0 });
+          b.marker.setZIndexOffset(0);
         }
       });
 
@@ -801,6 +852,9 @@
       }
 
       highlightLegend(currentFocus);
+
+      // Sync home/my-location opacity according to focus
+      applyHomeMyOpacityForFocus();
 
       maybeStatus(
         visible.size > 0
@@ -823,11 +877,26 @@
     refresh();
     setInterval(refresh, REFRESH_SEC * 1000);
 
+    /* Controls */
     btnHome.onclick = () => {
       centerTo(HOME);
       followEnabled = false;
       btnFollow.textContent = "🚫";
-      setStatus("Home (follow OFF)", 2000);
+      setStatus("Home view (follow OFF)", 2000);
+
+      // Home on top & fully opaque when explicitly selected
+      homeMarker.setZIndexOffset(2500);
+      homeMarker.setOpacity(1);
+      if (myLocMarker) {
+        myLocMarker.setZIndexOffset(0);
+        myLocMarker.setOpacity(1);
+      }
+      Object.keys(buses).forEach(id => {
+        if (buses[id]) buses[id].marker.setZIndexOffset(0);
+      });
+
+      // Clear bus focus fade effect
+      currentFocus = null;
     };
 
     btnPrev.onclick = () => {
@@ -836,7 +905,7 @@
       const id = i <= 0 ? busList[busList.length - 1] : busList[i - 1];
       followEnabled = true;
       btnFollow.textContent = "🎯";
-      focusBus(id);
+      focusBus(id, false);
     };
 
     btnNext.onclick = () => {
@@ -845,7 +914,7 @@
       const id = busList[(i + 1) % busList.length];
       followEnabled = true;
       btnFollow.textContent = "🎯";
-      focusBus(id);
+      focusBus(id, false);
     };
 
     btnRecenter.onclick = () => {
@@ -858,6 +927,13 @@
       centerTo(buses[currentFocus].marker.getLatLng());
       highlightLegend(currentFocus);
       setStatus("Recentered", 2000);
+
+      // Focused bus should stay highest
+      Object.keys(buses).forEach(id => {
+        if (buses[id]) buses[id].marker.setZIndexOffset(id === currentFocus ? 2000 : 0);
+      });
+      // Home/my-location stay faded under focused bus
+      applyHomeMyOpacityForFocus();
     };
 
     btnMyLoc.onclick = () => {
@@ -879,10 +955,23 @@
           } else {
             myLocMarker.setLatLng(ll);
           }
+
+          // My location on top & full opacity when explicitly selected
+          myLocMarker.setZIndexOffset(2500);
+          myLocMarker.setOpacity(1);
+          homeMarker.setZIndexOffset(0);
+          homeMarker.setOpacity(1);
+          Object.keys(buses).forEach(id => {
+            if (buses[id]) buses[id].marker.setZIndexOffset(0);
+          });
+
           centerTo(ll);
           followEnabled = false;
           btnFollow.textContent = "🚫";
-          setStatus("My location", 2000);
+          setStatus("My location (follow OFF)", 2000);
+
+          // Clear bus focus fade effect
+          currentFocus = null;
         },
         (err) => {
           setStatus("GPS error: " + err.message, 2000);
@@ -902,7 +991,7 @@
     btnLegend.onclick = () => {
       const collapsed = legendEl.classList.toggle("collapsed");
       btnLegend.textContent = collapsed ? "👁️" : "🙈";
-      btnLegend.title = collapsed ? "Show" : "Hide";
+      btnLegend.title = collapsed ? "Show Active Shuttles" : "Hide Active Shuttles";
       setStatus(collapsed ? "Legend hidden" : "Legend shown", 2000);
     };
 
@@ -944,7 +1033,7 @@
 
     btnWake.onclick = async () => {
       if (!("wakeLock" in navigator)) {
-        setStatus("Not supported", 2000);
+        setStatus("Wake Lock not supported", 2000);
         btnWake.disabled = true;
         return;
       }
@@ -971,6 +1060,10 @@
         logoBtn.classList.remove("wobble");
       }
     });
+
+    /* Filter changes rerender current snapshot */
+    routeFilterEl.onchange  = () => { if (lastSnapshot) updateMap(lastSnapshot); };
+    todayOnlyEl.onchange    = () => { if (lastSnapshot) updateMap(lastSnapshot); };
   </script>
 </body>
 </html>
