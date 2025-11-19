@@ -507,8 +507,7 @@
         iconAnchor: [22, 22]
       })
     }).addTo(map);
-    homeMarker.setZIndexOffset(0);
-    homeMarker.setOpacity(1);
+    homeMarker.setZIndexOffset(0); // below focused buses
 
     let statusHoldUntil = 0;
     function setStatus(msg, holdMs = 0) {
@@ -645,16 +644,6 @@
       if (found) found.classList.add("active");
     }
 
-    function applyHomeMyOpacityForFocus() {
-      if (currentFocus && buses[currentFocus]) {
-        homeMarker.setOpacity(0.6);
-        if (myLocMarker) myLocMarker.setOpacity(0.6);
-      } else {
-        homeMarker.setOpacity(1);
-        if (myLocMarker) myLocMarker.setOpacity(1);
-      }
-    }
-
     function focusBus(id, openPopup = false) {
       if (!id || !buses[id]) return;
       currentFocus = id;
@@ -671,11 +660,9 @@
         }
       });
 
-      // When a bus is focused → home & my location fade slightly and stay below
+      // Home / My location sit BELOW focused bus
       homeMarker.setZIndexOffset(0);
       if (myLocMarker) myLocMarker.setZIndexOffset(0);
-      homeMarker.setOpacity(0.6);
-      if (myLocMarker) myLocMarker.setOpacity(0.6);
 
       if (followEnabled) centerTo(buses[id].marker.getLatLng());
       if (openPopup) buses[id].marker.openPopup();
@@ -853,14 +840,15 @@
 
       highlightLegend(currentFocus);
 
-      // Sync home/my-location opacity according to focus
-      applyHomeMyOpacityForFocus();
-
       maybeStatus(
         visible.size > 0
           ? "Updated: " + new Date().toLocaleTimeString()
           : "No shuttles"
       );
+
+      // After refresh: home & my location are kept "normal" (below any focused bus)
+      homeMarker.setZIndexOffset(0);
+      if (myLocMarker) myLocMarker.setZIndexOffset(0);
     }
 
     async function refresh() {
@@ -884,19 +872,12 @@
       btnFollow.textContent = "🚫";
       setStatus("Home view (follow OFF)", 2000);
 
-      // Home on top & fully opaque when explicitly selected
+      // Home on top when explicitly selected
       homeMarker.setZIndexOffset(2500);
-      homeMarker.setOpacity(1);
-      if (myLocMarker) {
-        myLocMarker.setZIndexOffset(0);
-        myLocMarker.setOpacity(1);
-      }
+      if (myLocMarker) myLocMarker.setZIndexOffset(0);
       Object.keys(buses).forEach(id => {
         if (buses[id]) buses[id].marker.setZIndexOffset(0);
       });
-
-      // Clear bus focus fade effect
-      currentFocus = null;
     };
 
     btnPrev.onclick = () => {
@@ -929,11 +910,9 @@
       setStatus("Recentered", 2000);
 
       // Focused bus should stay highest
-      Object.keys(buses).forEach(id => {
-        if (buses[id]) buses[id].marker.setZIndexOffset(id === currentFocus ? 2000 : 0);
-      });
-      // Home/my-location stay faded under focused bus
-      applyHomeMyOpacityForFocus();
+      homeMarker.setZIndexOffset(0);
+      if (myLocMarker) myLocMarker.setZIndexOffset(0);
+      buses[currentFocus].marker.setZIndexOffset(2000);
     };
 
     btnMyLoc.onclick = () => {
@@ -956,11 +935,9 @@
             myLocMarker.setLatLng(ll);
           }
 
-          // My location on top & full opacity when explicitly selected
+          // My location on top when explicitly selected
           myLocMarker.setZIndexOffset(2500);
-          myLocMarker.setOpacity(1);
           homeMarker.setZIndexOffset(0);
-          homeMarker.setOpacity(1);
           Object.keys(buses).forEach(id => {
             if (buses[id]) buses[id].marker.setZIndexOffset(0);
           });
@@ -969,9 +946,6 @@
           followEnabled = false;
           btnFollow.textContent = "🚫";
           setStatus("My location (follow OFF)", 2000);
-
-          // Clear bus focus fade effect
-          currentFocus = null;
         },
         (err) => {
           setStatus("GPS error: " + err.message, 2000);
