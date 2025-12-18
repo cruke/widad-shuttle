@@ -433,7 +433,10 @@
     const WEB_APP_URL =
       "https://script.google.com/macros/s/AKfycby6mh0UYXsQyms8ZHWGl5fgDM2yUCBH7TfQ53zTS810KGLS8rLFFcijVTpGpoo2Ab5uAg/exec";
     const REFRESH_SEC = 10;
+
+    // NOTE: Trail limit now means "max points across ALL DATES"
     const TRAIL_LIMIT_PER_DAY = 200;
+
     const HOME = L.latLng(3.8235798, 103.2799927);
 
     const legendEl = document.getElementById("legend");
@@ -560,12 +563,11 @@
       return new Date(ts).toDateString() === new Date().toDateString();
     }
 
-    function todaysRows(rows) {
-      const today = new Date().toDateString();
-      const todayPts = rows.filter(
-        (r) => new Date(r.timestamp).toDateString() === today
-      );
-      return todayPts.slice(0, TRAIL_LIMIT_PER_DAY).reverse();
+    // ✅ Trails across ALL DATES (still capped)
+    function trailRowsAllDates(rows) {
+      // rows are assumed newest-first
+      // keep last N points, returned oldest->newest for a clean polyline
+      return rows.slice(0, TRAIL_LIMIT_PER_DAY).reverse();
     }
 
     const addrCache = new Map();
@@ -786,11 +788,14 @@
         }
 
         const b = buses[id];
-        const pts = todaysRows(rows);
+
+        // ✅ CHANGED: Use all-dates trail points (still limited)
+        const pts = trailRowsAllDates(rows);
+
         b.trail.setLatLngs(pts.map((p) => [+p.lat, +p.lng]));
         b.marker.setLatLng([lat, lng]);
 
-        // Default non-focused styling
+        // Default non-focused styling (only focused bus shows trail)
         b.marker.setZIndexOffset(0);
         b.trail.setStyle({ opacity: 0, weight: 0 });
 
